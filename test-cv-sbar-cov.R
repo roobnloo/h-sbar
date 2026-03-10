@@ -12,6 +12,7 @@
 source("generate-data.R")
 source("sbar-cov.R")
 source("cv-sbar-cov.R")
+source("sbar-cov-bea.R")
 
 # -----------------------------------------------------------------------
 # 1. Generate data (Scenario 1)
@@ -84,21 +85,29 @@ fit <- sbar_cov(
 cat("Solver status:", fit$status, "\n\n")
 
 # -----------------------------------------------------------------------
-# 6. Report estimated break points
+# 6. Stage 1 changepoints
 # -----------------------------------------------------------------------
-cat("Joint break points (cp):      ", fit$cp, "\n")
-cat("Coeff break points (cp_theta):", fit$cp_theta, "\n")
-cat("Var break points   (cp_psi):  ", fit$cp_psi, "\n")
+cat("Stage 1 — joint break points (cp):      ", fit$cp, "\n")
+cat("Stage 1 — coeff break points (cp_theta):", fit$cp_theta, "\n")
+cat("Stage 1 — var break points   (cp_psi):  ", fit$cp_psi, "\n")
 cat("(True coefficient breaks at t =", dat$break_points, ")\n\n")
 
-# Regime-specific parameters
-regimes <- sort(unique(c(1L, fit$cp)))
-cat("Regime summary (start | AR1 | sigma2):\n")
+# -----------------------------------------------------------------------
+# 7. Stage 2: BEA screening
+# -----------------------------------------------------------------------
+cat("Running BEA screening (Section 9) ...\n")
+bea <- sbar_cov_bea(fit, y = dat$Y)
+cat("Stage 2 — refined changepoints:", bea$cp, "\n")
+cat(sprintf("  omega_n = %.4g\n\n", bea$omega_n))
+
+# Regime summary from BEA
+regimes <- sort(unique(c(1L, bea$cp)))
+cat("Regime summary after BEA (start | AR1 | sigma2):\n")
 for (r in seq_along(regimes)) {
   t_start <- regimes[r]
   t_end <- if (r < length(regimes)) regimes[r + 1L] - 1L else dat$n
-  beta_r <- fit$beta[t_start, ]
-  sig2_r <- fit$sigma2[t_start]
+  beta_r <- bea$beta[t_start, ]
+  sig2_r <- bea$sigma2[t_start]
   cat(sprintf(
     "  t=%d..%d  AR1=%.3f  sigma2=%.3f\n",
     t_start, t_end, beta_r[1L], sig2_r
@@ -106,7 +115,7 @@ for (r in seq_along(regimes)) {
 }
 
 # -----------------------------------------------------------------------
-# 7. Diagnostic plot: series with estimated break points
+# 8. Diagnostic plot: series with Stage 1 and Stage 2 break points
 # -----------------------------------------------------------------------
 plot(dat$Y,
   type = "l", main = "SBAR-COV fit (Scenario 1, CV-selected lambda_n)",
@@ -116,10 +125,13 @@ for (t in dat$break_points) {
   abline(v = t, col = "red", lty = 2, lwd = 2)
 }
 for (t in fit$cp) {
-  abline(v = t, col = "blue", lty = 3)
+  abline(v = t, col = "lightgray", lty = 3)
+}
+for (t in bea$cp) {
+  abline(v = t, col = "blue", lty = 2, lwd = 2)
 }
 legend("topleft",
-  legend = c("True break", "Est. joint break"),
-  col = c("red", "blue"),
-  lty = c(2, 3), bty = "n"
+  legend = c("True break", "Stage 1 (LASSO)", "Stage 2 (BEA)"),
+  col = c("red", "lightgray", "blue"),
+  lty = c(2, 3, 2), bty = "n"
 )

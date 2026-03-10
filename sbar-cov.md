@@ -392,3 +392,53 @@ $$\min_{\boldsymbol{\theta},\,\boldsymbol{\psi},\,\mathbf{z}_1,\,\mathbf{z}_2}\;
 $$\bigl(\mathbf{z}_{1,i}^{k+1},\, z_{2,i}^{k+1}\bigr) = \mathcal{T}_{\lambda_n/\rho,\,c}\!\bigl(\boldsymbol{\theta}_i^{k+1} + \mathbf{u}_{1,i}^k,\; \psi_i^{k+1} + u_{2,i}^k\bigr), \tag{8.5}$$
 
 and $(\mathbf{z}_{1,1}^{k+1}, z_{2,1}^{k+1}) = (\boldsymbol{\theta}_1^{k+1} + \mathbf{u}_{1,1}^k,\; \psi_1^{k+1} + u_{2,1}^k)$ (no penalty on the initial block). **Step 4** (dual update) is unchanged. Each outer iteration remains $O(np)$, and the ADMM convergence guarantee from §7.6.4 carries over without modification since the joint penalty is still convex.
+
+---
+
+## 9. Two-Step Estimation: Backward Elimination for SBAR-COV
+
+The joint group LASSO (8.2) is designed to over-select candidate changepoints: it returns a set $\hat{A}_n^{\mathrm{jnt}}$ that contains every true break with high probability, but also includes false positives. A second step is required to prune this candidate set to the true break locations.
+
+### 9.1 Segment-wise Profile Likelihood
+
+Given a partition of $\{1,\ldots,n\}$ into $m+1$ segments by break locations $\mathbf{t} = (t_1,\ldots,t_m)$ with $t_0 = p$ and $t_{m+1} = n$, define segment $j$ as observations $t_{j-1}+1,\ldots,t_j$ with $n_j = t_j - t_{j-1}$ observations. Let $\hat{\boldsymbol{\beta}}_j$ denote the OLS estimate within segment $j$ and define the segment residual sum of squares:
+
+$$\mathrm{RSS}_j(\mathbf{t}) = \sum_{t=t_{j-1}+1}^{t_j} \bigl(Y_t - \hat{\boldsymbol{\beta}}_j^T \mathbf{Y}_{t-1}\bigr)^2.$$
+
+Maximizing the Gaussian likelihood over $\sigma_j^2$ within each segment yields the profile MLE $\hat{\sigma}_j^2 = \mathrm{RSS}_j / n_j$. Substituting back and dropping constants, the segment-wise profiled negative log-likelihood is:
+
+$$\mathrm{NLL}_j(\mathbf{t}) = \frac{n_j}{2}\log\hat{\sigma}_j^2 = \frac{n_j}{2}\log\frac{\mathrm{RSS}_j(\mathbf{t})}{n_j}.$$
+
+The total goodness-of-fit for the $m$-break partition $\mathbf{t}$ is:
+
+$$\mathcal{G}_n(\mathbf{t}) = \sum_{j=1}^{m+1} \mathrm{NLL}_j(\mathbf{t}) = \sum_{j=1}^{m+1} \frac{n_j}{2}\log\frac{\mathrm{RSS}_j(\mathbf{t})}{n_j}. \tag{9.1}$$
+
+### 9.2 The Information Criterion
+
+Because the joint penalty (8.1) enforces co-location, every changepoint in $\hat{A}_n^{\mathrm{jnt}}$ is a joint break involving both the AR coefficients and the precision. Each such break introduces $p+1$ new free parameters — $p$ for $\boldsymbol{\beta}_j$ and $1$ for $\sigma_j^2$. This uniform parameter count per break motivates the information criterion:
+
+$$\mathrm{IC}(m, \mathbf{t}) = \mathcal{G}_n(\mathbf{t}) + m\,\omega_n, \qquad \omega_n = \frac{(p+1)\log n}{2}. \tag{9.2}$$
+
+The choice $\omega_n = (p+1)\log(n)/2$ is the BIC penalty: it corresponds to $-2\log\hat{L} + k\log n$ with $k = p+1$ per break and $\mathcal{G}_n = -\log\hat{L}$ (up to constants). Under standard regularity conditions this choice achieves consistent model selection — $\omega_n \to \infty$ ensures false breaks are eventually rejected, and $\omega_n/n \to 0$ ensures true breaks are retained.
+
+### 9.3 The Backward Elimination Algorithm
+
+**Initialization.** Start with the full candidate set $\mathcal{A} = \hat{A}_n^{\mathrm{jnt}} = \{s_1 < \cdots < s_M\}$ from Stage 1, where $M = |\hat{A}_n^{\mathrm{jnt}}|$. Compute $W_M^* = \mathrm{IC}(M,\, \mathcal{A})$.
+
+**Iterative pruning.** At each step with current candidate set $\mathcal{A}$ of size $m$:
+
+1. For each $s_i \in \mathcal{A}$, compute the IC after removing $s_i$:
+$$W_{m-1,i} = \mathrm{IC}\!\bigl(m-1,\, \mathcal{A} \setminus \{s_i\}\bigr).$$
+
+2. Identify the most redundant point:
+$$i^* = \operatorname*{argmin}_{i}\, W_{m-1,i}, \qquad W_{m-1}^* = W_{m-1,\,i^*}.$$
+
+**Stopping criterion.** If $W_{m-1}^* \leq W_m^*$, remove $s_{i^*}$ from $\mathcal{A}$, set $m \leftarrow m-1$ and $W_m^* \leftarrow W_{m-1}^*$, then repeat. If $W_{m-1}^* > W_m^*$, stop and return $\mathcal{A}$ as the final estimated changepoint set $\hat{\hat{A}}_n$.
+
+### 9.4 Complexity and Practical Considerations
+
+**Computational cost.** Each pruning step evaluates $m$ candidate removals. For each removal, refitting is local: only the two segments adjacent to $s_i$ merge, so $\mathrm{RSS}_j$ for the merged segment must be recomputed. This can be done in $O(p^2 n_j)$ using updating formulas, giving a total cost of $O(M^2 p^2 n / M) = O(M p^2 n)$ over the entire BEA, or $O(p^2 n)$ per elimination step.
+
+**Relationship to Stage 1.** The BEA does not re-estimate the natural parameters — it uses segment-wise OLS to evaluate the IC. This is consistent because the Stage 2 criterion (9.2) is the profiled likelihood, which marginalizes out the precision parameters in closed form. The output $\hat{\hat{A}}_n$ is a subset of $\hat{A}_n^{\mathrm{jnt}}$; the final parameter estimates $(\hat{\boldsymbol{\beta}}_j, \hat{\sigma}_j^2)$ are then obtained by refitting within each selected segment.
+
+**Constraint from co-location.** Because (8.1) forces $(\boldsymbol{\theta}_i, \psi_i)$ to zero simultaneously, $\hat{A}_n^{\mathrm{jnt}}$ contains no coefficient-only or variance-only breaks. The BEA therefore always evaluates merged segments in which both AR structure and variance may change — it never faces the question of whether to retain a break that affects only one component.
