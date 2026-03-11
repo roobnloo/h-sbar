@@ -142,6 +142,23 @@ sbar_cov_cvxr <- function(y,
   cp_theta <- which(sqrt(rowSums(theta_tail^2)) > thr) + 1L
   cp_psi <- which(abs(psi_tail) > thr) + 1L
 
+  # ------------------------------------------------------------------
+  # 9. Post-processing: boundary trim and minimum-spacing filter
+  #    - Drop candidates within p+3 of start or at the final index n
+  #    - Of any two adjacent candidates with gap <= p+1, drop the earlier
+  # ------------------------------------------------------------------
+  filter_cp <- function(candidates) {
+    x <- candidates[candidates > p + 3L & candidates < n]
+    if (length(x) > 1L) {
+      too_close <- which(diff(x) <= p + 1L)
+      if (length(too_close) > 0L) x <- x[-too_close]
+    }
+    x
+  }
+  cp       <- filter_cp(cp)
+  cp_theta <- filter_cp(cp_theta)
+  cp_psi   <- filter_cp(cp_psi)
+
   list(
     theta    = theta_hat,
     psi      = psi_hat,

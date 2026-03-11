@@ -133,9 +133,10 @@ cv_sbar_cov <- function(y,
     }
 
     if (verbose) {
+      n_cp <- if (is.null(fit)) NA_integer_ else length(fit$cp)
       message(sprintf(
-        "[%d/%d]  lambda=%.4g  MSPE=%.5g",
-        j, n_lambda, ln, mspe[j]
+        "[%d/%d]  lambda=%.4g  MSPE=%.5g  ncp=%s",
+        j, n_lambda, ln, mspe[j], n_cp
       ))
     }
   }

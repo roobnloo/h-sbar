@@ -15,9 +15,9 @@ source("cv-sbar-cov.R")
 source("sbar-cov-bea.R")
 
 # -----------------------------------------------------------------------
-# 1. Generate data (Scenario 4)
+# 1. Generate data
 # -----------------------------------------------------------------------
-dat <- generate_scenario4(seed = 42)
+dat <- generate_scenario5(seed = 42)
 cat(
   "True break points: t =", dat$break_points, "\n",
   " phi per regime  :", sapply(dat$phi_list, function(x) x[1L]), "\n",
@@ -30,7 +30,7 @@ cat(
 #    val_spacing defaults to max(p+1, round(n/10)) = 30 with n=300, p=1,
 #    giving ~9 equally spaced validation points.
 # -----------------------------------------------------------------------
-lambda_path <- 10^seq(-5, -2, length.out = 100)
+lambda_path <- 10^seq(-5, 0, length.out = 100)
 c_scale_fixed <- 10
 
 cat("Running interpolation CV over lambda path ...\n")
