@@ -12,23 +12,23 @@
 #        Y_hat_t = x_t %*% beta_hat[t,]   (x_t lags are in the training set)
 #   5. MSPE(lambda) = mean((Y_t - Y_hat_t)^2) over t in T.
 #
-# Varies lambda_n over a log-linear path; c_scale is fixed (not cross-validated).
+# Varies lambda over a log-linear path; c_scale is fixed (not cross-validated).
 
 if (!exists("sbar_cov", mode = "function")) source("sbar-cov.R")
 
 # ============================================================
-# Public: interpolation CV over a lambda_n path
+# Public: interpolation CV over a lambda path
 # ============================================================
 
-#' Interpolation cross-validation for SBAR-COV over a lambda_n path
+#' Interpolation cross-validation for SBAR-COV over a lambda path
 #'
 #' Holds out equally spaced points, fits on the thinned matrix via
 #' \code{sbar_cov(keep_rows=...)}, predicts the held-out responses,
-#' and reports MSPE per lambda_n value.
+#' and reports MSPE per lambda value.
 #'
 #' @param y           Numeric time series (length n).
 #' @param p           AR order (no intercept).
-#' @param lambda_n    Numeric vector of lambda_n candidates.
+#' @param lambda    Numeric vector of lambda candidates.
 #'                    Default: 10-point log grid on [1e-3, 1].
 #' @param c_scale     Fixed scale parameter c (Section 8.3).  Not cross-validated.
 #'                    Default 1.
@@ -40,22 +40,23 @@ if (!exists("sbar_cov", mode = "function")) source("sbar-cov.R")
 #'
 #' @return A list with:
 #' \describe{
-#'   \item{cv_table}{Data frame: lambda_n, mspe. One row per lambda value.}
+#'   \item{cv_table}{Data frame: lambda, mspe. One row per lambda value.}
 #'   \item{best}{One-row data frame with the lambda minimising MSPE.}
 #'   \item{val_points}{Integer vector of validation time indices.}
 #'   \item{keep_rows}{Integer vector of training row indices.}
 #' }
 cv_sbar_cov <- function(y,
                         p = 1L,
-                        lambda_n = NULL,
+                        lambda = NULL,
                         c_scale = 1,
                         val_spacing = NULL,
                         verbose = TRUE,
                         ...) {
   n <- length(y)
 
-  # ---- build lambda path -------------------------------------------------
-  lambda_vec <- if (is.null(lambda_n)) 10^seq(-3, 0, length.out = 10) else lambda_n
+  # ---- build lambda path (decreasing for warm restarts) ------------------
+  lambda_vec <- if (is.null(lambda)) 10^seq(-3, 0, length.out = 10) else lambda
+  lambda_vec <- sort(lambda_vec, decreasing = TRUE)
   n_lambda <- length(lambda_vec)
 
   # ---- validation set ----------------------------------------------------
@@ -100,6 +101,8 @@ cv_sbar_cov <- function(y,
 
   # ---- main CV loop ------------------------------------------------------
   mspe <- numeric(n_lambda)
+  warm_theta <- NULL
+  warm_psi <- NULL
 
   for (j in seq_len(n_lambda)) {
     ln <- lambda_vec[j]
@@ -107,18 +110,21 @@ cv_sbar_cov <- function(y,
     fit <- tryCatch(
       sbar_cov( # nolint: object_usage_linter
         y, p,
-        lambda_n  = ln,
-        c_scale   = c_scale,
+        lambda = ln,
+        c_scale = c_scale,
         keep_rows = keep_rows,
+        init_theta = warm_theta,
+        init_psi = warm_psi,
         ...
       ),
       error = function(e) NULL
     )
 
-    if (is.null(fit) ||
-      !fit$status %in% c("optimal", "optimal_inaccurate")) {
+    if (is.null(fit)) {
       mspe[j] <- NA_real_
     } else {
+      warm_theta <- fit$theta
+      warm_psi <- fit$psi
       gamma_val <- l_val %*% fit$theta # k x q
       phi_val <- as.vector(l_val %*% fit$psi) # k
       beta_val <- sweep(gamma_val, 1, phi_val, "/") # k x q
@@ -128,14 +134,14 @@ cv_sbar_cov <- function(y,
 
     if (verbose) {
       message(sprintf(
-        "[%d/%d]  lambda_n=%.4g  MSPE=%.5g",
+        "[%d/%d]  lambda=%.4g  MSPE=%.5g",
         j, n_lambda, ln, mspe[j]
       ))
     }
   }
 
   # ---- assemble output ---------------------------------------------------
-  cv_table <- data.frame(lambda_n = lambda_vec, mspe = mspe)
+  cv_table <- data.frame(lambda = lambda_vec, mspe = mspe)
   best_idx <- which.min(mspe)
 
   list(
@@ -147,10 +153,10 @@ cv_sbar_cov <- function(y,
 }
 
 # ============================================================
-# Plotting helper: elbow plot of MSPE along the lambda_n path
+# Plotting helper: elbow plot of MSPE along the lambda path
 # ============================================================
 
-#' Plot MSPE along the lambda_n path (elbow plot)
+#' Plot MSPE along the lambda path (elbow plot)
 #'
 #' @param cv_result  Output of \code{cv_sbar_cov()}.
 #' @param log_x      Log-scale the lambda axis? Default TRUE.
@@ -159,8 +165,8 @@ plot_cv_sbar_cov <- function(cv_result, log_x = TRUE, ...) {
   tbl <- cv_result$cv_table
   best <- cv_result$best
 
-  x <- tbl$lambda_n
-  bx <- best$lambda_n
+  x <- tbl$lambda
+  bx <- best$lambda
   if (log_x) {
     x <- log10(x)
     bx <- log10(bx)
@@ -177,7 +183,7 @@ plot_cv_sbar_cov <- function(cv_result, log_x = TRUE, ...) {
   )
   abline(v = bx, lty = 2, col = "firebrick")
   legend("topright",
-    legend = sprintf("Best = %.4g\nMSPE = %.5g", best$lambda_n, best$mspe),
+    legend = sprintf("Best = %.4g\nMSPE = %.5g", best$lambda, best$mspe),
     bty = "n", text.col = "firebrick"
   )
 

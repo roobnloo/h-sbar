@@ -15,7 +15,7 @@
 #'
 #' @param y         Numeric time series (length n)
 #' @param p         AR order (no intercept)
-#' @param lambda_n  Joint penalty strength
+#' @param lambda  Joint penalty strength
 #' @param c_scale   Scale parameter c > 0 (default 1)
 #' @param keep_rows Integer vector of row indices to include in the likelihood.
 #'                  Defaults to all rows.
@@ -32,7 +32,7 @@
 #'               cp, cp_theta, cp_psi, obj_val, n_iter
 sbar_cov <- function(y,
                      p = 1,
-                     lambda_n = 0.1,
+                     lambda = 0.1,
                      c_scale = 1,
                      keep_rows = NULL,
                      alpha0 = 1,
@@ -41,7 +41,9 @@ sbar_cov <- function(y,
                      tol = 1e-6,
                      thr = 1e-3,
                      restart = TRUE,
-                     verbose = FALSE) {
+                     verbose = FALSE,
+                     init_theta = NULL,
+                     init_psi = NULL) {
   n <- length(y)
   if (is.null(keep_rows)) keep_rows <- seq_len(n)
   n_tr <- length(keep_rows)
@@ -98,7 +100,7 @@ sbar_cov <- function(y,
       return(0)
     }
     norms <- sqrt(rowSums(th[-1L, , drop = FALSE]^2) + c_scale * ps[-1L]^2)
-    lambda_n * sum(norms)
+    lambda * sum(norms)
   }
 
   # -----------------------------------------------------------------------
@@ -120,7 +122,7 @@ sbar_cov <- function(y,
       return(list(th = a_th, ps = a_ps))
     }
     norms <- sqrt(rowSums(a_th[-1L, , drop = FALSE]^2) + c_scale * a_ps[-1L]^2)
-    shrink <- ifelse(norms > 0, pmax(0, 1 - alpha * lambda_n / norms), 0)
+    shrink <- ifelse(norms > 0, pmax(0, 1 - alpha * lambda / norms), 0)
     out_th <- a_th
     out_ps <- a_ps
     out_th[-1L, ] <- shrink * a_th[-1L, , drop = FALSE]
@@ -132,8 +134,13 @@ sbar_cov <- function(y,
   # 7. Initialise
   #    w = true iterate; m = extrapolated point (start equal); s = momentum
   # -----------------------------------------------------------------------
-  theta <- matrix(0, n, p)
-  psi <- c(1 / max(var(y_tr), 1e-6), rep(0, n - 1))
+  if (!is.null(init_theta) && !is.null(init_psi)) {
+    theta <- init_theta
+    psi <- init_psi
+  } else {
+    theta <- matrix(0, n, p)
+    psi <- c(1 / max(var(y_tr), 1e-6), rep(0, n - 1))
+  }
 
   m_th <- theta
   m_ps <- psi
