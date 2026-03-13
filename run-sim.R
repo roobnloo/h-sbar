@@ -3,11 +3,12 @@
 # Each method: CV-selected lambda + BEA stage-2 pruning.
 #
 # Usage:
-#   Rscript run-sim.R --scenario=N [--sigma=X] [--nrep=N]
+#   Rscript run-sim.R --scenario=N [--sigma=X] [--sigma_scale=X] [--nrep=N]
 #
-#   --scenario=N   Required. Scenario 1-5 (see generate-data.R).
-#   --sigma=X      Innovation std dev (scenario 1 only, default 1).
-#   --nrep=N       Number of replications (default 100).
+#   --scenario=N      Required. Scenario 1-5 (see generate-data.R).
+#   --sigma=X         Innovation std dev (scenarios 1-3, default 1).
+#   --sigma_scale=X   Multiplier for sigma_vec (scenarios 4-5, default 1).
+#   --nrep=N          Number of replications (default 100).
 #
 # Metrics:
 #   Table 1: avg # breaks, % correct, mean/SE of relative break locations
@@ -35,8 +36,9 @@ if (is.null(scenario_str)) stop("--scenario=N is required (1-5)")
 scenario_arg <- as.integer(scenario_str)
 if (!scenario_arg %in% 1:5) stop("--scenario must be 1-5")
 
-sigma_arg <- as.numeric(parse_arg(args, "sigma", "1"))
-nrep_arg  <- as.integer(parse_arg(args, "nrep", "100"))
+sigma_arg       <- as.numeric(parse_arg(args, "sigma", "1"))
+sigma_scale_arg <- as.numeric(parse_arg(args, "sigma_scale", "1"))
+nrep_arg        <- as.integer(parse_arg(args, "nrep", "100"))
 
 # ============================================================
 # Dependencies
@@ -63,13 +65,13 @@ SCENARIO_INFO <- list(
     n = 300L, p = 1L, m0 = 2L,
     breaks    = c(50L, 250L),
     phi_list  = list(c(-0.6), c(0.75), c(-0.8)),
-    sigma_vec = c(0.1, 0.1, 0.1)
+    sigma_vec = NULL # filled from sigma_arg below
   ),
   `3` = list(
     n = 300L, p = 2L, m0 = 2L,
     breaks    = c(100L, 200L),
     phi_list  = list(c(0.4, 0.2), c(0.5, 0.1), c(0.3, 0.2)),
-    sigma_vec = c(0.1, 0.1, 0.1)
+    sigma_vec = NULL # filled from sigma_arg below
   ),
   `4` = list(
     n = 500L, p = 1L, m0 = 2L,
@@ -86,7 +88,8 @@ SCENARIO_INFO <- list(
 )
 
 info <- SCENARIO_INFO[[as.character(scenario_arg)]]
-if (scenario_arg == 1L) info$sigma_vec <- rep(sigma_arg, 3L)
+if (scenario_arg %in% 1:3) info$sigma_vec <- rep(sigma_arg, 3L)
+if (scenario_arg %in% 4:5) info$sigma_vec <- c(0.1, 0.4, 0.15) * sigma_scale_arg
 
 N              <- info$n
 P              <- info$p
@@ -97,10 +100,10 @@ TRUE_SIGMA_VEC <- info$sigma_vec
 
 GENERATE_FN <- switch(as.character(scenario_arg),
   "1" = function(seed) generate_scenario1(seed = seed, sigma = sigma_arg),
-  "2" = function(seed) generate_scenario2(seed = seed),
-  "3" = function(seed) generate_scenario3(seed = seed),
-  "4" = function(seed) generate_scenario4(seed = seed),
-  "5" = function(seed) generate_scenario5(seed = seed)
+  "2" = function(seed) generate_scenario2(seed = seed, sigma = sigma_arg),
+  "3" = function(seed) generate_scenario3(seed = seed, sigma = sigma_arg),
+  "4" = function(seed) generate_scenario4(seed = seed, sigma_scale = sigma_scale_arg),
+  "5" = function(seed) generate_scenario5(seed = seed, sigma_scale = sigma_scale_arg)
 )
 
 # ============================================================
@@ -255,10 +258,10 @@ one_rep <- function(seed, lambda_sbar, lambda_chan, c_scale) {
 # Main simulation loop
 # ============================================================
 
-run_label <- if (scenario_arg == 1L) {
+run_label <- if (scenario_arg %in% 1:3) {
   sprintf("Scenario %d  sigma=%.4g", scenario_arg, sigma_arg)
 } else {
-  sprintf("Scenario %d", scenario_arg)
+  sprintf("Scenario %d  sigma_scale=%.4g", scenario_arg, sigma_scale_arg)
 }
 
 cat(sprintf(
@@ -285,10 +288,10 @@ for (i in seq_len(N_REP)) {
 elapsed <- (proc.time() - t_start)[["elapsed"]]
 cat(sprintf("\nTotal elapsed: %.1f s  (%.1f s/rep)\n\n", elapsed, elapsed / N_REP))
 
-rds_label <- if (scenario_arg == 1L) {
+rds_label <- if (scenario_arg %in% 1:3) {
   sprintf("scenario%d-sigma%.4g", scenario_arg, sigma_arg)
 } else {
-  sprintf("scenario%d", scenario_arg)
+  sprintf("scenario%d-sigscale%.4g", scenario_arg, sigma_scale_arg)
 }
 rds_path <- sprintf("run-sim-%s-results.rds", rds_label)
 saveRDS(results, rds_path)

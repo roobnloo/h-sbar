@@ -92,14 +92,15 @@ generate_scenario1 <- function(seed = 42, sigma = 1) {
 #' Tests detection when a regime occupies few observations.
 #' Same coefficient jumps as Scenario 1; constant variance.
 #'
-#' @param seed RNG seed
+#' @param seed  RNG seed
+#' @param sigma Innovation std dev (constant across regimes, default 0.1)
 #' @return List from generate_ar_piecewise
-generate_scenario2 <- function(seed = 42) {
+generate_scenario2 <- function(seed = 42, sigma = 0.1) {
   generate_ar_piecewise(
     n            = 300L,
     break_points = c(50L, 250L),
     phi_list     = list(c(-0.6), c(0.75), c(-0.8)),
-    sigma_vec    = c(0.1, 0.1, 0.1),
+    sigma_vec    = c(sigma, sigma, sigma),
     seed         = seed
   )
 }
@@ -110,9 +111,10 @@ generate_scenario2 <- function(seed = 42) {
 #' T=300, p=2, m0=2. Breaks at t=100 and t=200.
 #' Small coefficient changes across regimes; constant variance.
 #'
-#' @param seed RNG seed
+#' @param seed  RNG seed
+#' @param sigma Innovation std dev (constant across regimes, default 0.1)
 #' @return List from generate_ar_piecewise
-generate_scenario3 <- function(seed = 42) {
+generate_scenario3 <- function(seed = 42, sigma = 0.1) {
   generate_ar_piecewise(
     n = 300L,
     break_points = c(100L, 200L),
@@ -121,7 +123,7 @@ generate_scenario3 <- function(seed = 42) {
       c(0.5, 0.1),
       c(0.3, 0.2)
     ),
-    sigma_vec = c(0.1, 0.1, 0.1),
+    sigma_vec = c(sigma, sigma, sigma),
     seed = seed
   )
 }
@@ -133,14 +135,16 @@ generate_scenario3 <- function(seed = 42) {
 #' Regime 2 ("crisis") has high persistence and high noise.
 #' This is the main scenario for evaluating the H-SBAR joint penalty.
 #'
-#' @param seed RNG seed
+#' @param seed        RNG seed
+#' @param sigma_scale Multiplier applied to all sigma values (default 1).
+#'   Base sigma_vec is c(0.1, 0.4, 0.15); multiply by sigma_scale to rescale.
 #' @return List from generate_ar_piecewise
-generate_scenario4 <- function(seed = 42) {
+generate_scenario4 <- function(seed = 42, sigma_scale = 1) {
   generate_ar_piecewise(
     n            = 500L,
     break_points = c(150L, 350L),
     phi_list     = list(c(0.5), c(0.9), c(0.2)),
-    sigma_vec    = c(0.1, 0.4, 0.15),
+    sigma_vec    = c(0.1, 0.4, 0.15) * sigma_scale,
     seed         = seed
   )
 }
@@ -153,14 +157,16 @@ generate_scenario4 <- function(seed = 42) {
 #'   eps_t = 0.5 * eps_{t-1} + nu_t,  nu_t ~ N(0, 1).
 #' Tests robustness when the i.i.d. noise assumption is violated.
 #'
-#' @param seed RNG seed
+#' @param seed        RNG seed
+#' @param sigma_scale Multiplier applied to all sigma values (default 1).
+#'   Base sigma_vec is c(0.1, 0.4, 0.15); multiply by sigma_scale to rescale.
 #' @return List from generate_ar_piecewise
-generate_scenario5 <- function(seed = 42) {
+generate_scenario5 <- function(seed = 42, sigma_scale = 1) {
   generate_ar_piecewise(
     n            = 300L,
     break_points = c(100L, 200L),
     phi_list     = list(c(0.5), c(0.9), c(0.2)),
-    sigma_vec    = c(0.1, 0.4, 0.15),
+    sigma_vec    = c(0.1, 0.4, 0.15) * sigma_scale,
     noise_ar     = 0.5,
     seed         = seed
   )

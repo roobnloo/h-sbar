@@ -32,7 +32,7 @@ where $\epsilon_t \sim N(0, 1)$.
 * **Parameters:** $T=300, p=1, m_0=2$.
 * **Break Points:** $t_1=50, t_2=250$.
 * **Coefficients ($\phi$):** $\phi_1 = -0.6, \phi_2 = 0.75, \phi_3 = -0.8$.
-* **Variance ($\sigma$):** Constant $\sigma = 0.1$.
+* **Variance ($\sigma$):** Constant across regimes; configurable via `--sigma` (default 0.1).
 
 ### Scenario 3: Small-Jump Detection (Lower Signal-to-Noise)
 
@@ -46,7 +46,7 @@ where $\epsilon_t \sim N(0, 1)$.
 * Regime 3: $(\phi_{3,1}=0.3, \phi_{3,2}=0.2)$
 
 
-* **Variance ($\sigma$):** Constant $\sigma = 0.1$.
+* **Variance ($\sigma$):** Constant across regimes; configurable via `--sigma` (default 0.1).
 
 ### Scenario 4: Joint Coefficient & Variance Shift (Target Case)
 
@@ -58,8 +58,7 @@ where $\epsilon_t \sim N(0, 1)$.
 * **Regime 1:** $\phi = 0.5, \sigma = 0.1$ (Low activity, low noise)
 * **Regime 2:** $\phi = 0.9, \sigma = 0.4$ (High persistence, high noise - e.g., "Crisis" phase)
 * **Regime 3:** $\phi = 0.2, \sigma = 0.15$ (Mean reverting, moderate noise)
-
-
+* **Noise scaling:** All $\sigma$ values are multiplied by `sigma_scale` (configurable via `--sigma_scale`, default 1).
 
 ### Scenario 5: Model Misspecification (Correlated Error)
 
@@ -68,6 +67,7 @@ where $\epsilon_t \sim N(0, 1)$.
 * **Parameters:** $T=300, p=1, m_0=2$.
 * **Noise Profile:** $\epsilon_t$ follows an $AR(1)$ process: $\epsilon_t = 0.5\epsilon_{t-1} + \nu_t$, where $\nu_t \sim N(0, 1)$.
 * **Coefficients/Variance:** Use values from Scenario 4 to see if correlated noise masks the structural breaks.
+* **Noise scaling:** All $\sigma$ values are multiplied by `sigma_scale` (configurable via `--sigma_scale`, default 1).
 
 ---
 

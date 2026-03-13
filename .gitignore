@@ -1,4 +1,7 @@
 CLAUDE.md
 .DS_Store
 context/
+sim/
 *.rds
+*.pdf
+*.log
