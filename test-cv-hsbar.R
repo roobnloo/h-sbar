@@ -1,5 +1,5 @@
-# test-cv-sbar-cov.R
-# Cross-validate SBAR-COV over a path of lambda at fixed c_scale,
+# test-cv-hsbar.R
+# Cross-validate H-SBAR over a path of lambda at fixed c_scale,
 # using Scenario 1 data: AR(1), two coefficient breaks, constant variance.
 #
 # Uses the interpolation-based CV method (tscv.md):
@@ -10,14 +10,14 @@
 # c_scale is fixed (not cross-validated); only lambda is varied.
 
 source("generate-data.R")
-source("sbar-cov.R")
-source("cv-sbar-cov.R")
-source("sbar-cov-bea.R")
+source("hsbar.R")
+source("cv-hsbar.R")
+source("hsbar-bea.R")
 
 # -----------------------------------------------------------------------
 # 1. Generate data
 # -----------------------------------------------------------------------
-dat <- generate_scenario5(seed = 42)
+dat <- generate_scenario1(seed = 1)
 cat(
   "True break points: t =", dat$break_points, "\n",
   " phi per regime  :", sapply(dat$phi_list, function(x) x[1L]), "\n",
@@ -31,7 +31,7 @@ cat(
 #    giving ~9 equally spaced validation points.
 # -----------------------------------------------------------------------
 lambda_path <- 10^seq(-5, 0, length.out = 100)
-c_scale_fixed <- 10
+c_scale_fixed <- 1
 
 cat("Running interpolation CV over lambda path ...\n")
 cat(sprintf(
@@ -42,7 +42,7 @@ cat(sprintf(
   max(lambda_path)
 ))
 
-cv <- cv_sbar_cov(
+cv <- cv_hsbar(
   y = dat$Y,
   p = dat$p,
   lambda = lambda_path,
@@ -65,7 +65,7 @@ print(cv$best, digits = 4, row.names = FALSE)
 # -----------------------------------------------------------------------
 # 4. Elbow plot
 # -----------------------------------------------------------------------
-plot_cv_sbar_cov(cv)
+plot_cv_hsbar(cv)
 
 # -----------------------------------------------------------------------
 # 5. Refit on full design matrix with CV-selected lambda
@@ -76,7 +76,7 @@ cat(sprintf(
   "\nRefitting on full data: lambda=%.4g, c_scale=%.4g ...\n",
   best_ln, c_scale_fixed
 ))
-fit <- sbar_cov(
+fit <- hsbar(
   y = dat$Y,
   p = dat$p,
   lambda = best_ln,
@@ -96,7 +96,7 @@ cat("(True coefficient breaks at t =", dat$break_points, ")\n\n")
 # 7. Stage 2: BEA screening
 # -----------------------------------------------------------------------
 cat("Running BEA screening (Section 9) ...\n")
-bea <- sbar_cov_bea(fit, y = dat$Y)
+bea <- hsbar_bea(fit, y = dat$Y)
 cat("Stage 2 — refined changepoints:", bea$cp, "\n")
 cat(sprintf("  omega_n = %.4g\n\n", bea$omega_n))
 
@@ -118,7 +118,7 @@ for (r in seq_along(regimes)) {
 # 8. Diagnostic plot: series with Stage 1 and Stage 2 break points
 # -----------------------------------------------------------------------
 plot(dat$Y,
-  type = "l", main = "SBAR-COV fit (Scenario 1, CV-selected lambda)",
+  type = "l", main = "H-SBAR fit (Scenario 1, CV-selected lambda)",
   xlab = "t", ylab = "Y"
 )
 for (t in dat$break_points) {

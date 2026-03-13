@@ -1,6 +1,6 @@
 source("generate-data.R")
-source("sbar-cov-cvxr.R")
-source("sbar-cov.R")
+source("hsbar-cvxr.R")
+source("hsbar.R")
 
 set.seed(1)
 lambda <- 0.005
@@ -28,7 +28,7 @@ for (scenario in 1:5) {
   # Run CVXR
   time_cvxr <- system.time(
     tryCatch(
-      fit_cvxr <- sbar_cov_cvxr(y, p = p, lambda = lambda, verbose = FALSE),
+      fit_cvxr <- hsbar_cvxr(y, p = p, lambda = lambda, verbose = FALSE),
       error = function(e) {
         cat("CVXR error:", e$message, "\n")
         NULL
@@ -38,7 +38,7 @@ for (scenario in 1:5) {
 
   # Run FISTA
   time_fista <- system.time(
-    fit_fista <- sbar_cov(y,
+    fit_fista <- hsbar(y,
       p = p, lambda = lambda, alpha0 = 20,
       max_iter = 2000, tol = 1e-6, restart = TRUE, verbose = FALSE
     )

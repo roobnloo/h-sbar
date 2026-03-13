@@ -30,7 +30,7 @@ where
 
 $$f(\boldsymbol{\theta}, \boldsymbol{\psi}) := \frac{1}{n}\mathcal{L}_n^{\mathrm{nat}}(\boldsymbol{\theta}, \boldsymbol{\psi}), \qquad g(\boldsymbol{\theta}, \boldsymbol{\psi}) := \lambda \sum_{i=2}^n \|\mathbf{v}_i\|_2.$$
 
-The smooth part $f$ is continuously differentiable and convex on the domain $\mathcal{D} = \{\boldsymbol{\psi} : \Phi_t > 0\;\forall\,t\}$; the non-smooth part $g$ is convex and admits a closed-form proximal operator (§7.8 of sbar-cov.md). Each iteration takes a gradient step on $f$ followed by a proximal step for $g$.
+The smooth part $f$ is continuously differentiable and convex on the domain $\mathcal{D} = \{\boldsymbol{\psi} : \Phi_t > 0\;\forall\,t\}$; the non-smooth part $g$ is convex and admits a closed-form proximal operator (§7.8 of hsbar.md). Each iteration takes a gradient step on $f$ followed by a proximal step for $g$.
 
 ---
 
@@ -70,7 +70,7 @@ Since $L_f$ is unknown and state-dependent, a **backtracking line search** selec
 
 ## The Proximal Operator
 
-The proximal operator of $g$ at a point $(\mathbf{a}, \mathbf{b}) \in \mathbb{R}^{np} \times \mathbb{R}^n$ decouples over positions $i$ (non-overlapping groups). For $i \geq 2$, the joint group soft-threshold (sbar-cov.md §7.8) is:
+The proximal operator of $g$ at a point $(\mathbf{a}, \mathbf{b}) \in \mathbb{R}^{np} \times \mathbb{R}^n$ decouples over positions $i$ (non-overlapping groups). For $i \geq 2$, the joint group soft-threshold (hsbar.md §7.8) is:
 
 $$\mathrm{prox}_{\alpha g}(\mathbf{a}, \mathbf{b})_i = \mathcal{T}_{\alpha\lambda, c}(\mathbf{a}_i, b_i) := \left(1 - \frac{\alpha\lambda}{\sqrt{\|\mathbf{a}_i\|_2^2 + c\,b_i^2}}\right)_{\!\!+} (\mathbf{a}_i,\, b_i). \tag{7}$$
 

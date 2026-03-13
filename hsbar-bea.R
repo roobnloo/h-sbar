@@ -1,7 +1,7 @@
-# sbar-cov-bea.R
-# Stage 2: Backward Elimination Algorithm for SBAR-COV (Section 9).
+# hsbar-bea.R
+# Stage 2: Backward Elimination Algorithm for H-SBAR (Section 9).
 #
-# The Stage 1 joint group LASSO (sbar_cov) over-selects candidate
+# The Stage 1 joint group LASSO (hsbar) over-selects candidate
 # changepoints.  This module prunes them using the profile-likelihood
 # information criterion from eq. 9.2: the total profiled NLL across
 # segments (eq. 9.1) plus m times a per-break BIC penalty equal to
@@ -10,7 +10,7 @@
 # The output reports refined changepoint locations together with
 # segment-wise OLS estimates of beta_j and sigma_j^2.
 
-if (!exists("sbar_cov", mode = "function")) source("sbar-cov.R")
+if (!exists("hsbar", mode = "function")) source("hsbar.R")
 
 # ------------------------------------------------------------------
 # Internal: profiled NLL contribution for one segment (eq. 9.1 term)
@@ -71,24 +71,24 @@ refit_segments <- function(y, y_lag, cps, n, p) {
 # Public: BEA pruning of Stage 1 changepoints
 # ------------------------------------------------------------------
 
-#' Backward Elimination Algorithm for SBAR-COV (Section 9)
+#' Backward Elimination Algorithm for H-SBAR (Section 9)
 #'
 #' Prunes the over-selected candidate changepoints produced by Stage 1
-#' (\code{sbar_cov}) using a BIC-based profile-likelihood IC.  Returns
+#' (\code{hsbar}) using a BIC-based profile-likelihood IC.  Returns
 #' the refined changepoint set together with segment-wise OLS estimates
 #' of \eqn{\beta_j} and \eqn{\sigma_j^2} for the pruned model.
 #'
-#' @param fit     Output of \code{sbar_cov()} or \code{cv_sbar_cov()}.
-#'                If from \code{cv_sbar_cov()}, \code{sbar_cov()} is
+#' @param fit     Output of \code{hsbar()} or \code{cv_hsbar()}.
+#'                If from \code{cv_hsbar()}, \code{hsbar()} is
 #'                re-run internally with the best \eqn{\lambda_n};
 #'                \code{p} must be supplied explicitly in that case.
 #' @param y       Numeric time series (length \eqn{n}).
 #' @param p       AR order.  Inferred from \code{fit$beta} when
-#'                \code{fit} is the output of \code{sbar_cov()}.
+#'                \code{fit} is the output of \code{hsbar()}.
 #' @param omega_n Penalty per break.  Default: \eqn{(p+1)\log(n)/2}
 #'                (BIC, eq. 9.2).
-#' @param ...     Additional arguments forwarded to \code{sbar_cov()}
-#'                when \code{fit} is from \code{cv_sbar_cov()}.
+#' @param ...     Additional arguments forwarded to \code{hsbar()}
+#'                when \code{fit} is from \code{cv_hsbar()}.
 #'
 #' @return A list with:
 #' \describe{
@@ -100,23 +100,23 @@ refit_segments <- function(y, y_lag, cps, n, p) {
 #'   \item{ic}{IC value at the final changepoint set.}
 #'   \item{omega_n}{Penalty per break used.}
 #' }
-sbar_cov_bea <- function(fit, y, p = NULL, omega_n = NULL, ...) {
+hsbar_bea <- function(fit, y, p = NULL, omega_n = NULL, ...) {
   # ---- resolve input type --------------------------------------------------
   if (!is.null(fit$best)) {
-    # fit is from cv_sbar_cov(): refit with the best lambda
+    # fit is from cv_hsbar(): refit with the best lambda
     if (is.null(p)) {
       stop(
-        "p must be provided when fit is the output of cv_sbar_cov()."
+        "p must be provided when fit is the output of cv_hsbar()."
       )
     }
-    fit <- sbar_cov(y, p = p, lambda_n = fit$best$lambda_n, ...)
+    fit <- hsbar(y, p = p, lambda_n = fit$best$lambda_n, ...)
   }
 
   n <- length(y)
   if (is.null(p)) p <- ncol(fit$beta)
   if (is.null(omega_n)) omega_n <- (p + 1) * log(n) / 2
 
-  # ---- lagged regressor matrix (same convention as sbar-cov.R) -------------
+  # ---- lagged regressor matrix (same convention as hsbar.R) ----------------
   y_ext <- c(rep(0, p), y)
   y_lag <- matrix(0, n, p)
   for (k in seq_len(p)) {

@@ -1,9 +1,9 @@
-# sbar-cov-fista.R
-# SBAR-COV fitted by FISTA (accelerated proximal gradient) with backtracking.
+# hsbar.R
+# H-SBAR fitted by FISTA (accelerated proximal gradient) with backtracking.
 #
 # Minimises Q = f + g where:
 #   f = (1/n_tr) * L_nat      smooth loss  (eq. 2 of prox_grad.md)
-#   g = lambda * sum ||v_i||  group LASSO  (eq. 7.5 of sbar-cov.md)
+#   g = lambda * sum ||v_i||  group LASSO  (eq. 7.5 of hsbar.md)
 #
 # Each iteration evaluates the gradient/prox step at the extrapolated
 # point m, then applies Nesterov momentum to the true iterates w.
@@ -11,7 +11,7 @@
 #
 # See prox_grad.md (FISTA section) for the full mathematical development.
 
-#' Fit SBAR-COV via FISTA with backtracking line search
+#' Fit H-SBAR via FISTA with backtracking line search
 #'
 #' @param y         Numeric time series (length n)
 #' @param p         AR order (no intercept)
@@ -30,7 +30,7 @@
 #'
 #' @return List: theta, psi, phi_vec, sigma2, beta,
 #'               cp, cp_theta, cp_psi, obj_val, n_iter
-sbar_cov <- function(y,
+hsbar <- function(y,
                      p = 1,
                      lambda = 0.1,
                      c_scale = 1,

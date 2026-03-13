@@ -1,14 +1,14 @@
 # cv-chan-sbar.R
 # Interpolation-based cross-validation for Chan et al. (2014) SBAR.
 #
-# Mirrors cv-sbar-cov.R exactly, with two differences:
-#   1. Calls chan_sbar() instead of sbar_cov().
+# Mirrors cv-hsbar.R exactly, with two differences:
+#   1. Calls chan_sbar() instead of hsbar().
 #   2. Prediction at validation point v uses
 #        y_hat_v = x_v %*% (l_val[j,] %*% theta)
 #      i.e. the cumulative AR coefficient directly, with no phi division,
 #      because cumsum(theta)[t,] = beta_t in Chan's model.
 #
-# See cv-sbar-cov.R for full methodology (Safikhani & Shojaie 2022).
+# See cv-hsbar.R for full methodology (Safikhani & Shojaie 2022).
 
 if (!exists("chan_sbar_admm", mode = "function")) {
   source(file.path(dirname(sys.frame(1)$ofile), "chan-sbar-admm.R"))

@@ -11,7 +11,7 @@
 #
 # The design matrix X_n has (t, j)-block = Y_{t-1}^T if j <= t, else 0,
 # so (X_n theta)[t] = Y_{t-1}^T cumsum(theta)[t, ].  This cumsum structure
-# allows O(n) gradient evaluation via bwd_cumsum, mirroring sbar-cov.R.
+# allows O(n) gradient evaluation via bwd_cumsum, mirroring hsbar.R.
 #
 # Algorithm: FISTA with backtracking line search and gradient-based restart
 # (O'Donoghue & Candes).  Solves the same convex problem as the BCD and
@@ -21,7 +21,7 @@
 # using the RSS-based information criterion of Chan et al. (2014) eq. 2.9:
 #   IC(m, t) = Sn(t1,...,tm) + m * omega_n
 # where Sn is the total OLS residual sum of squares (NOT the profiled NLL
-# used in sbar-cov-bea.R).  Default omega_n = (p+1)*log(n) (MDL-like).
+# used in hsbar-bea.R).  Default omega_n = (p+1)*log(n) (MDL-like).
 #
 # Reference:
 #   Chan, N. H., Yau, C. Y., & Zhang, R. M. (2014). Group LASSO for
@@ -35,7 +35,7 @@
 #'
 #' Estimates AR coefficient changepoints by minimising the group LASSO
 #' objective (eq. 2.2) with a squared OLS loss.  Interface matches
-#' \code{sbar_cov()} for direct comparison; variance-related outputs
+#' \code{hsbar()} for direct comparison; variance-related outputs
 #' (\code{psi}, \code{phi_vec}, \code{cp_psi}) are \code{NULL}.
 #'
 #' @param y        Numeric time series (length n).
@@ -353,7 +353,7 @@ chan_refit_segments <- function(y, y_lag, cps, n, p) {
 #' using the RSS-based information criterion of Chan et al. (2014) eq. 2.9:
 #' \deqn{IC(m, \mathbf{t}) = S_n(t_1,\ldots,t_m) + m \omega_n}
 #' where \eqn{S_n} is the total OLS residual sum of squares.  This criterion
-#' differs from \code{sbar_cov_bea()}, which uses a profiled log-likelihood.
+#' differs from \code{hsbar_bea()}, which uses a profiled log-likelihood.
 #'
 #' @param fit      Output of \code{chan_sbar()}.
 #' @param y        Numeric time series (length n).
@@ -371,7 +371,7 @@ chan_refit_segments <- function(y, y_lag, cps, n, p) {
 chan_sbar_bea <- function(fit, y, p = NULL, omega_n = NULL) {
   n <- length(y)
   if (is.null(p)) p <- ncol(fit$beta)
-  if (is.null(omega_n)) omega_n <- (p + 1) * log(n)
+  if (is.null(omega_n)) omega_n <- p * log(n)
 
   # Lagged regressor matrix (same convention as chan_sbar)
   y_ext <- c(rep(0, p), y)

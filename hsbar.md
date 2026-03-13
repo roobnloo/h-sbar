@@ -1,6 +1,8 @@
-# Sketch of Chan, Yau & Zhang (2014): Group LASSO for Structural Break Time Series
+# Heterogeneous Structural Break Autoregression
 
 ## 1. The SBAR Model
+
+### Chan, Yau & Zhang (2014): Group LASSO for Structural Break Time Series
 
 Chan et al. consider an $(m+1)$-regime **structural break autoregressive (SBAR)** process:
 
@@ -106,11 +108,11 @@ For large $|\hat{A}_n|$, a **backward elimination algorithm (BEA)** is used to e
 
 ---
 
-## 7. The Role of $\sigma$ and the Extension: SBAR-COV
+## 7. The Role of $\sigma$ and the Extension: H-SBAR
 
 A notable feature of the Chan et al. framework is that $\sigma(Y_{t-1}, \ldots, Y_{t-q})$ is **regime-invariant**: the conditional variance function does not change across breaks. This is a binding assumption — the method can only capture changes in the AR coefficients $\boldsymbol{\beta}_j$, not changes in volatility.
 
-### 7.1 The SBAR-COV Model
+### 7.1 The H-SBAR Model
 
 We replace $\sigma$ with a regime-specific constant $\sigma_j > 0$, giving:
 
@@ -320,7 +322,7 @@ $$\mathbf{u}_1^{k+1} = \mathbf{u}_1^k + \boldsymbol{\theta}^{k+1} - \mathbf{z}_1
 
 ---
 
-## 8. Two-Step Estimation: Backward Elimination for SBAR-COV
+## 8. Two-Step Estimation: Backward Elimination for H-SBAR
 
 The joint group LASSO (7.6) is designed to over-select candidate changepoints: it returns a set $\hat{A}_n$ that contains every true break with high probability, but also includes false positives. A second step is required to prune this candidate set to the true break locations.
 

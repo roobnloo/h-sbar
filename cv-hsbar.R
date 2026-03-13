@@ -1,5 +1,5 @@
-# cv-sbar-cov.R
-# Interpolation-based cross-validation for SBAR-COV (Safikhani & Shojaie 2022).
+# cv-hsbar.R
+# Interpolation-based cross-validation for H-SBAR (Safikhani & Shojaie 2022).
 #
 # Methodology (see tscv.md):
 #   1. Choose k equally spaced validation points T = {t_1,...,t_k} with
@@ -7,23 +7,23 @@
 #   2. For each t in T remove from the regression matrix:
 #        - the validation row  (row t  : Y_t is the response)
 #        - the p poisoned rows (rows t+1..t+p : Y_t would appear as predictor)
-#   3. Fit SBAR-COV on the thinned training matrix via sbar_cov(keep_rows=...).
+#   3. Fit H-SBAR on the thinned training matrix via hsbar(keep_rows=...).
 #   4. Recover beta_hat[t,] at each validation time and predict
 #        Y_hat_t = x_t %*% beta_hat[t,]   (x_t lags are in the training set)
 #   5. MSPE(lambda) = mean((Y_t - Y_hat_t)^2) over t in T.
 #
 # Varies lambda over a log-linear path; c_scale is fixed (not cross-validated).
 
-if (!exists("sbar_cov", mode = "function")) source("sbar-cov.R")
+if (!exists("hsbar", mode = "function")) source("hsbar.R")
 
 # ============================================================
 # Public: interpolation CV over a lambda path
 # ============================================================
 
-#' Interpolation cross-validation for SBAR-COV over a lambda path
+#' Interpolation cross-validation for H-SBAR over a lambda path
 #'
 #' Holds out equally spaced points, fits on the thinned matrix via
-#' \code{sbar_cov(keep_rows=...)}, predicts the held-out responses,
+#' \code{hsbar(keep_rows=...)}, predicts the held-out responses,
 #' and reports MSPE per lambda value.
 #'
 #' @param y           Numeric time series (length n).
@@ -35,7 +35,7 @@ if (!exists("sbar_cov", mode = "function")) source("sbar-cov.R")
 #' @param val_spacing Spacing s between validation points. Must be > p.
 #'                    Default: \code{max(p + 1, round(n / 10))}.
 #' @param verbose     Print per-lambda progress? Default TRUE.
-#' @param ...         Additional arguments forwarded to \code{sbar_cov()}
+#' @param ...         Additional arguments forwarded to \code{hsbar()}
 #'                    (e.g. \code{solver}, \code{thr}).
 #'
 #' @return A list with:
@@ -45,7 +45,7 @@ if (!exists("sbar_cov", mode = "function")) source("sbar-cov.R")
 #'   \item{val_points}{Integer vector of validation time indices.}
 #'   \item{keep_rows}{Integer vector of training row indices.}
 #' }
-cv_sbar_cov <- function(y,
+cv_hsbar <- function(y,
                         p = 1L,
                         lambda = NULL,
                         c_scale = 1,
@@ -108,7 +108,7 @@ cv_sbar_cov <- function(y,
     ln <- lambda_vec[j]
 
     fit <- tryCatch(
-      sbar_cov( # nolint: object_usage_linter
+      hsbar( # nolint: object_usage_linter
         y, p,
         lambda = ln,
         c_scale = c_scale,
@@ -159,10 +159,10 @@ cv_sbar_cov <- function(y,
 
 #' Plot MSPE along the lambda path (elbow plot)
 #'
-#' @param cv_result  Output of \code{cv_sbar_cov()}.
+#' @param cv_result  Output of \code{cv_hsbar()}.
 #' @param log_x      Log-scale the lambda axis? Default TRUE.
 #' @param ...        Extra arguments passed to \code{plot()}.
-plot_cv_sbar_cov <- function(cv_result, log_x = TRUE, ...) {
+plot_cv_hsbar <- function(cv_result, log_x = TRUE, ...) {
   tbl <- cv_result$cv_table
   best <- cv_result$best
 
@@ -179,7 +179,7 @@ plot_cv_sbar_cov <- function(cv_result, log_x = TRUE, ...) {
     type = "b", pch = 19, col = "steelblue",
     xlab = xlab,
     ylab = "CV MSPE",
-    main = "SBAR-COV cross-validation \u2013 MSPE",
+    main = "H-SBAR cross-validation \u2013 MSPE",
     ...
   )
   abline(v = bx, lty = 2, col = "firebrick")

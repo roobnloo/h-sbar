@@ -1,5 +1,5 @@
-# sbar-cov.R
-# SBAR-COV: Structural Break AR with regime-specific variance.
+# hsbar-cvxr.R
+# H-SBAR: Heterogeneous Structural Break AR with regime-specific variance.
 #
 # Joint co-location penalty (Section 8, eq. 8.1):
 #
@@ -23,7 +23,7 @@
 
 library(CVXR)
 
-#' Fit SBAR-COV via the joint co-location penalty (Section 8, eq. 8.1)
+#' Fit H-SBAR via the joint co-location penalty (Section 8, eq. 8.1)
 #'
 #' @param y         Numeric time series (length n)
 #' @param p         AR order (no intercept)
@@ -39,7 +39,7 @@ library(CVXR)
 #'
 #' @return List: theta, psi, phi_vec, sigma2, beta,
 #'               cp (joint changepoints), cp_theta, cp_psi, status, obj_val
-sbar_cov_cvxr <- function(y,
+hsbar_cvxr <- function(y,
                           p = 1,
                           lambda_n = 0.1,
                           c_scale = 1,
@@ -120,7 +120,7 @@ sbar_cov_cvxr <- function(y,
   sol_status <- status(problem)
   sol_obj <- value(problem)
   if (!sol_status %in% c("optimal", "optimal_inaccurate")) {
-    warning("SBAR-COV solver status: ", sol_status)
+    warning("H-SBAR solver status: ", sol_status)
   }
 
   # ------------------------------------------------------------------

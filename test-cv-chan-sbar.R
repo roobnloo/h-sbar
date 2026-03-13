@@ -29,7 +29,7 @@ cat(
 #    val_spacing defaults to max(p+1, round(n/10)) = 30 with n=300, p=1,
 #    giving ~9 equally spaced validation points.
 # -----------------------------------------------------------------------
-lambda_path <- 10^seq(-5, -2, length.out = 100)
+lambda_path <- 10^seq(-4, 0, length.out = 100)
 
 cat("Running interpolation CV over lambda path ...\n")
 cat(sprintf(
@@ -43,7 +43,7 @@ cv <- cv_chan_sbar(
   y       = dat$Y,
   p       = dat$p,
   lambda  = lambda_path,
-  verbose = TRUE
+  verbose = FALSE
 )
 
 # -----------------------------------------------------------------------
@@ -111,7 +111,7 @@ for (r in seq_along(regimes)) {
 # 8. Diagnostic plot: series with Stage 1 and Stage 2 break points
 # -----------------------------------------------------------------------
 plot(dat$Y,
-  type = "l", main = "Chan SBAR fit (Scenario 5, CV-selected lambda)",
+  type = "l", main = "Chan SBAR fit (CV-selected lambda)",
   xlab = "t", ylab = "Y"
 )
 for (t in dat$break_points) {

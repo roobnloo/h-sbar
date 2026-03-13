@@ -70,17 +70,17 @@ generate_ar_piecewise <- function(n, break_points, phi_list, sigma_vec,
 #' Scenario 1: Baseline (centre breaks, constant variance)
 #'
 #' T=300, p=1, m0=2. Breaks at t=100 and t=200.
-#' Large coefficient jumps; variance constant at sigma=0.1.
+#' Large coefficient jumps; variance constant at sigma.
 #' Reference: Safikhani & Shojaie (2022), low-noise benchmark.
 #'
 #' @param seed RNG seed
 #' @return List from generate_ar_piecewise
-generate_scenario1 <- function(seed = 42) {
+generate_scenario1 <- function(seed = 42, sigma = 1) {
   generate_ar_piecewise(
     n            = 300L,
     break_points = c(100L, 200L),
     phi_list     = list(c(-0.6), c(0.75), c(-0.8)),
-    sigma_vec    = c(0.1, 0.1, 0.1),
+    sigma_vec    = c(sigma, sigma, sigma),
     seed         = seed
   )
 }
@@ -131,7 +131,7 @@ generate_scenario3 <- function(seed = 42) {
 #'
 #' T=500, p=1, m0=2. Breaks at t=150 and t=350.
 #' Regime 2 ("crisis") has high persistence and high noise.
-#' This is the main scenario for evaluating the SBAR-COV joint penalty.
+#' This is the main scenario for evaluating the H-SBAR joint penalty.
 #'
 #' @param seed RNG seed
 #' @return List from generate_ar_piecewise
