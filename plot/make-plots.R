@@ -28,16 +28,18 @@ if (length(rds_files) == 0L) stop("No results .rds files found in sim/")
 # Flatten one results list into a long data frame
 # ============================================================
 
-VARIANTS <- c("sbar_s2", "chan_s2")
+VARIANTS <- c("sbar_s2", "chan_s2_rss", "chan_s2_sigma", "chan_s2_prof")
 METHOD_LABELS <- c(
   sbar_s2 = "H-SBAR",
-  chan_s2 = "Chan"
+  chan_s2_rss = "Chan RSS",
+  chan_s2_sigma = "Chan sigma",
+  chan_s2_prof = "Chan profile"
 )
 
 SCALAR_METRICS <- c("ncp", "hd", "mse", "beta_err", "sigma2_err")
 METRIC_LABELS <- c(
   ncp        = "# changepoints",
-  hd         = "Hausdorff distance",
+  hd         = "log(1 + Hausdorff distance)",
   mse        = "Prediction MSE",
   beta_err   = "AR coef. error",
   sigma2_err = expression(sigma^2 ~ error)
@@ -75,9 +77,10 @@ flatten_results <- function(results, setting_label) {
 
 parse_label <- function(path) {
   base <- sub("^run-sim-(.+)-results\\.rds$", "\\1", basename(path))
-  # e.g. "scenario1-sigma0.5" -> "Scenario 1  sigma=0.5"
-  #      "scenario4"          -> "Scenario 4"
-  base <- sub("scenario(\\d+)-sigma(.+)", "Scenario \\1  sigma=\\2", base)
+  # e.g. "scenario1-sigma0.5"    -> "Scenario 1  sigma=0.5"
+  #      "scenario4-sigscale1.5" -> "Scenario 4  sigscale=1.5"
+  #      "scenario4"             -> "Scenario 4"
+  base <- sub("scenario(\\d+)-(sigma|sigscale)(.+)", "Scenario \\1  \\2=\\3", base, perl = TRUE)
   base <- sub("scenario(\\d+)$", "Scenario \\1", base)
   base
 }
@@ -92,21 +95,29 @@ all_df <- bind_rows(lapply(rds_files, function(f) {
   flatten_results(results, label)
 }))
 
-all_df$method <- factor(all_df$method, levels = c("H-SBAR", "Chan"))
+# Parse scenario and sigma_label for scenario-level plots
+all_df$scenario    <- sub("^(Scenario \\d+).*$", "\\1", all_df$setting)
+all_df$sigma_label <- trimws(sub("^Scenario \\d+\\s*", "", all_df$setting))
+all_df$sigma_label[all_df$sigma_label == ""] <- "(base)"
 
 # ============================================================
 # Plotting helpers
 # ============================================================
 
 METHOD_COLORS <- c(
-  "H-SBAR" = "#2166AC",
-  "Chan"   = "#D6604D"
+  "H-SBAR"       = "#2166AC",
+  "Chan RSS"     = "#D6604D",
+  "Chan sigma"   = "#4DAC26",
+  "Chan profile" = "#8E44AD"
 )
+
+all_df$method <- factor(all_df$method, levels = names(METHOD_COLORS))
 
 make_boxplot <- function(df, metric, y_label, setting) {
   sub_df <- df[, c("method", metric)]
   colnames(sub_df)[2] <- "value"
   sub_df <- sub_df[!is.na(sub_df$value), ]
+  if (metric == "hd") sub_df$value <- log1p(sub_df$value)
 
   ggplot(sub_df, aes(x = method, y = value, fill = method)) +
     geom_boxplot(outlier.size = 0.8, linewidth = 0.4, width = 0.55) +
@@ -189,3 +200,76 @@ if (requireNamespace("patchwork", quietly = TRUE)) {
 }
 
 cat("\nDone.\n")
+
+# ============================================================
+# Scenario-level plots: log(1+hd) and AR coef error,
+# grouped by sigma / sigscale on the x-axis
+# ============================================================
+
+SCENARIO_METRICS <- c("hd", "beta_err")
+SCENARIO_METRIC_LABELS <- c(
+  hd       = "log(1 + Hausdorff distance)",
+  beta_err = "AR coef. error"
+)
+
+sigma_level_order <- function(labels) {
+  u    <- unique(labels)
+  nums <- suppressWarnings(as.numeric(gsub(".*=", "", u)))
+  u[order(nums, na.last = TRUE)]
+}
+
+make_scenario_plot <- function(df_scen, scenario_name) {
+  df_scen$sigma_label <- factor(
+    df_scen$sigma_label,
+    levels = sigma_level_order(unique(df_scen$sigma_label))
+  )
+
+  long <- tidyr::pivot_longer(df_scen, cols = all_of(SCENARIO_METRICS),
+                              names_to = "metric", values_to = "value")
+  long <- long[!is.na(long$value), ]
+  long$value[long$metric == "hd"] <- log1p(long$value[long$metric == "hd"])
+  long$metric <- factor(long$metric,
+                        levels = SCENARIO_METRICS,
+                        labels = unname(SCENARIO_METRIC_LABELS[SCENARIO_METRICS]))
+
+  ggplot(long, aes(x = sigma_label, y = value, fill = method)) +
+    geom_boxplot(outlier.size = 0.5, linewidth = 0.35, width = 0.7,
+                 position = position_dodge(0.85)) +
+    scale_fill_manual(values = METHOD_COLORS, name = NULL) +
+    facet_wrap(~ metric, ncol = 1L, scales = "free_y") +
+    labs(title = scenario_name, x = NULL, y = NULL) +
+    theme_bw(base_size = 11) +
+    theme(
+      plot.title       = element_text(size = 10, face = "bold"),
+      legend.position  = "right",
+      axis.text.x      = element_text(angle = 20, hjust = 1, size = 8),
+      panel.grid.minor = element_blank(),
+      strip.text       = element_text(size = 9)
+    )
+}
+
+scenarios <- unique(all_df$scenario)
+
+for (sc in scenarios) {
+  sub <- all_df[all_df$scenario == sc, ]
+  p   <- make_scenario_plot(sub, sc)
+  fname <- file.path(out_dir,
+                     paste0("plots-scenario-", gsub("[[:space:]]+", "_", sc), ".pdf"))
+  ggsave(fname, p, width = 10, height = 6, device = "pdf")
+  cat(sprintf("Saved %s\n", fname))
+}
+
+if (requireNamespace("patchwork", quietly = TRUE)) {
+  scen_plots   <- lapply(scenarios, function(sc) {
+    make_scenario_plot(all_df[all_df$scenario == sc, ], sc)
+  })
+  combined_scen <- Reduce(`/`, scen_plots)
+  out_scen_all  <- file.path(out_dir, "plots-scenarios-all.pdf")
+  ggsave(out_scen_all, combined_scen,
+    width = 10, height = 6 * length(scenarios), device = "pdf",
+    limitsize = FALSE
+  )
+  cat(sprintf("Saved %s\n", out_scen_all))
+}
+
+cat("\nDone (scenario plots).\n")

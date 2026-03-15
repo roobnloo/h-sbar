@@ -11,7 +11,7 @@ library(dplyr)
 # ============================================================
 
 rds_files <- list.files("sim",
-  pattern  = "^run-sim-.*-results\\.rds$",
+  pattern = "^run-sim-.*-results\\.rds$",
   full.names = TRUE
 )
 if (length(rds_files) == 0L) stop("No results .rds files found in sim/")
@@ -20,20 +20,28 @@ if (length(rds_files) == 0L) stop("No results .rds files found in sim/")
 # Flatten RDS results into a long data frame
 # ============================================================
 
-variants <- c("sbar_s2", "chan_s2")
-method_labels <- c(sbar_s2 = "H-SBAR", chan_s2 = "Chan")
+variants <- c("sbar_s2", "chan_s2_rss", "chan_s2_sigma", "chan_s2_prof")
+method_labels <- c(
+  sbar_s2       = "H-SBAR",
+  chan_s2_rss   = "Chan RSS",
+  chan_s2_sigma = "Chan sigma",
+  chan_s2_prof  = "Chan profile"
+)
 scalar_metrics <- c("ncp", "hd", "mse", "beta_err", "sigma2_err")
 
 parse_label <- function(path) {
   base <- sub("^run-sim-(.+)-results\\.rds$", "\\1", basename(path))
-  base <- sub("scenario(\\d+)-sigma(.+)", "Scenario \\1  sigma=\\2", base)
+  # e.g. "scenario1-sigma0.5"    -> "Scenario 1  sigma=0.5"
+  #      "scenario4-sigscale1.5" -> "Scenario 4  sigscale=1.5"
+  #      "scenario4"             -> "Scenario 4"
+  base <- sub("scenario(\\d+)-(sigma|sigscale)(.+)", "Scenario \\1  \\2=\\3", base, perl = TRUE)
   base <- sub("scenario(\\d+)$", "Scenario \\1", base)
   base
 }
 
 flatten_results <- function(results, setting_label) {
   rows <- vector("list", length(results) * length(variants))
-  idx  <- 1L
+  idx <- 1L
   for (i in seq_along(results)) {
     rep <- results[[i]]
     for (v in variants) {
@@ -45,7 +53,7 @@ flatten_results <- function(results, setting_label) {
         row <- lapply(scalar_metrics, function(m) as.numeric(entry[[m]]))
         names(row) <- scalar_metrics
       }
-      row$rep     <- i
+      row$rep <- i
       row$variant <- v
       row$setting <- setting_label
       rows[[idx]] <- row
@@ -75,31 +83,33 @@ metric_print_labels <- c(
 
 fmt_cell <- function(vals) {
   vals <- vals[!is.na(vals)]
-  if (length(vals) == 0L) return("      -      ")
-  m  <- mean(vals)
+  if (length(vals) == 0L) {
+    return("      -      ")
+  }
+  m <- mean(vals)
   se <- sd(vals) / sqrt(length(vals))
   sprintf("%.4f (%.4f)", m, se)
 }
 
-col_w    <- 18L
+col_w <- 18L
+method_names <- unname(method_labels)
 settings <- unique(all_df$setting)
 
 for (s in settings) {
   sub <- all_df[all_df$setting == s, ]
-  cat(sprintf("\n%s\n", strrep("=", 60)))
+  cat(sprintf("\n%s\n", strrep("=", 60 + col_w * (length(method_names) - 1L))))
   cat(sprintf("Table: %s\n", s))
-  cat(strrep("=", 60), "\n")
+  cat(strrep("=", 60 + col_w * (length(method_names) - 1L)), "\n")
 
-  hdr <- sprintf("%-18s %*s %*s", "Metric", col_w, "H-SBAR", col_w, "Chan")
+  hdr <- sprintf("%-18s", "Metric")
+  for (mn in method_names) hdr <- paste0(hdr, sprintf(" %*s", col_w, mn))
   cat(hdr, "\n")
   cat(strrep("-", nchar(hdr)), "\n")
 
   for (m in scalar_metrics) {
-    cat(sprintf("%-18s %*s %*s\n",
-      metric_print_labels[m],
-      col_w, fmt_cell(sub[[m]][sub$method == "H-SBAR"]),
-      col_w, fmt_cell(sub[[m]][sub$method == "Chan"])
-    ))
+    row <- sprintf("%-18s", metric_print_labels[m])
+    for (mn in method_names) row <- paste0(row, sprintf(" %*s", col_w, fmt_cell(sub[[m]][sub$method == mn])))
+    cat(row, "\n")
   }
 }
 

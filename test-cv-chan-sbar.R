@@ -10,13 +10,16 @@
 # No c_scale parameter: Chan's model has AR coefficients only (no variance changes).
 
 source("generate-data.R")
-source("chan-sbar-admm.R")
+source("chan-sbar-bea.R")
 source("cv-chan-sbar.R")
+
+c_omega_n <- 1 # scale BEA penalty
+ic_type <- "sigma_scaled"
 
 # -----------------------------------------------------------------------
 # 1. Generate data
 # -----------------------------------------------------------------------
-dat <- generate_scenario1(seed = 42)
+dat <- generate_scenario1(seed = 40, sigma = 0.1)
 cat(
   "True break points: t =", dat$break_points, "\n",
   " phi per regime  :", sapply(dat$phi_list, function(x) x[1L]), "\n",
@@ -72,7 +75,7 @@ cat(sprintf(
   "\nRefitting on full data: lambda=%.4g ...\n",
   best_ln
 ))
-fit <- chan_sbar(
+fit <- chan_sbar_admm(
   y      = dat$Y,
   p      = dat$p,
   lambda = best_ln
@@ -86,45 +89,54 @@ cat("Stage 1 — changepoints (cp):", fit$cp, "\n")
 cat("(True coefficient breaks at t =", dat$break_points, ")\n\n")
 
 # -----------------------------------------------------------------------
-# 7. Stage 2: BEA screening
+# 7. Stage 2: BEA screening under all three IC criteria
 # -----------------------------------------------------------------------
-cat("Running BEA screening (Chan 2014 Section 2.2) ...\n")
-bea <- chan_sbar_bea(fit, y = dat$Y)
-cat("Stage 2 — refined changepoints:", bea$cp, "\n")
-cat(sprintf("  omega_n = %.4g\n\n", bea$omega_n))
+ic_types  <- c("rss", "sigma_scaled", "profile_lik")
+ic_labels <- c("RSS", "Sigma-scaled", "Profile likelihood")
 
-# Regime summary from BEA
-regimes <- sort(unique(c(1L, bea$cp)))
-cat("Regime summary after BEA (start | AR1 | sigma2):\n")
-for (r in seq_along(regimes)) {
-  t_start <- regimes[r]
-  t_end <- if (r < length(regimes)) regimes[r + 1L] - 1L else dat$n
-  beta_r <- bea$beta[t_start, ]
-  sig2_r <- bea$sigma2[t_start]
-  cat(sprintf(
-    "  t=%d..%d  AR1=%.3f  sigma2=%.3f\n",
-    t_start, t_end, beta_r[1L], sig2_r
-  ))
+cat("Running BEA screening (Chan 2014 Section 2.2) ...\n\n")
+bea_list <- lapply(ic_types, function(ic) {
+  chan_sbar_bea(fit, y = dat$Y, c_omega_n = c_omega_n, ic_type = ic)
+})
+
+for (i in seq_along(ic_types)) {
+  b <- bea_list[[i]]
+  cat(sprintf("IC: %s\n", ic_labels[i]))
+  cat("  Stage 2 — refined changepoints:", if (length(b$cp) == 0L) "none" else b$cp, "\n")
+  cat(sprintf("  omega_n = %.4g\n", b$omega_n))
+  regimes <- sort(unique(c(1L, b$cp)))
+  for (r in seq_along(regimes)) {
+    t_start <- regimes[r]
+    t_end   <- if (r < length(regimes)) regimes[r + 1L] - 1L else dat$n
+    cat(sprintf("  t=%d..%d  AR1=%.3f  sigma2=%.3f\n",
+                t_start, t_end, b$beta[t_start, 1L], b$sigma2[t_start]))
+  }
+  cat("\n")
 }
 
 # -----------------------------------------------------------------------
-# 8. Diagnostic plot: series with Stage 1 and Stage 2 break points
+# 8. Diagnostic plots: series with Stage 1 and Stage 2 break points
 # -----------------------------------------------------------------------
-plot(dat$Y,
-  type = "l", main = "Chan SBAR fit (CV-selected lambda)",
-  xlab = "t", ylab = "Y"
-)
-for (t in dat$break_points) {
-  abline(v = t, col = "red", lty = 2, lwd = 2)
+op <- par(mfrow = c(3L, 1L), mar = c(3, 4, 2, 1))
+for (i in seq_along(ic_types)) {
+  b <- bea_list[[i]]
+  plot(dat$Y,
+    type = "l",
+    main = sprintf("BEA — %s  (cp: %s)",
+      ic_labels[i],
+      if (length(b$cp) == 0L) "none" else paste(b$cp, collapse = ", ")
+    ),
+    xlab = "t", ylab = "Y"
+  )
+  for (t in dat$break_points) abline(v = t, col = "red",      lty = 2, lwd = 2)
+  for (t in fit$cp)           abline(v = t, col = "darkgray", lty = 3)
+  for (t in b$cp)             abline(v = t, col = "blue",     lty = 2, lwd = 2)
+  if (i == 1L) {
+    legend("topleft",
+      legend = c("True break", "Stage 1 (LASSO)", "Stage 2 (BEA)"),
+      col    = c("red", "darkgray", "blue"),
+      lty    = c(2, 3, 2), bty = "n", cex = 0.8
+    )
+  }
 }
-for (t in fit$cp) {
-  abline(v = t, col = "darkgray", lty = 3)
-}
-for (t in bea$cp) {
-  abline(v = t, col = "blue", lty = 2, lwd = 2)
-}
-legend("topleft",
-  legend = c("True break", "Stage 1 (LASSO)", "Stage 2 (BEA)"),
-  col = c("red", "darkgray", "blue"),
-  lty = c(2, 3, 2), bty = "n"
-)
+par(op)

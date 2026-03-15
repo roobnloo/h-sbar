@@ -3,12 +3,13 @@
 # Each method: CV-selected lambda + BEA stage-2 pruning.
 #
 # Usage:
-#   Rscript run-sim.R --scenario=N [--sigma=X] [--sigma_scale=X] [--nrep=N]
+#   Rscript run-sim.R --scenario=N [--sigma=X] [--sigscale=X] [--nrep=N] [--outdir=PATH]
 #
 #   --scenario=N      Required. Scenario 1-5 (see generate-data.R).
 #   --sigma=X         Innovation std dev (scenarios 1-3, default 1).
-#   --sigma_scale=X   Multiplier for sigma_vec (scenarios 4-5, default 1).
+#   --sigscale=X      Multiplier for sigma_vec (scenarios 4-5, default 1).
 #   --nrep=N          Number of replications (default 100).
+#   --outdir=PATH     Directory for .rds output files (default ./sim, created if needed).
 #
 # Metrics:
 #   Table 1: avg # breaks, % correct, mean/SE of relative break locations
@@ -37,8 +38,9 @@ scenario_arg <- as.integer(scenario_str)
 if (!scenario_arg %in% 1:5) stop("--scenario must be 1-5")
 
 sigma_arg       <- as.numeric(parse_arg(args, "sigma", "1"))
-sigma_scale_arg <- as.numeric(parse_arg(args, "sigma_scale", "1"))
+sigma_scale_arg <- as.numeric(parse_arg(args, "sigscale", "1"))
 nrep_arg        <- as.integer(parse_arg(args, "nrep", "100"))
+outdir_arg      <- parse_arg(args, "outdir", "./sim")
 
 # ============================================================
 # Dependencies
@@ -48,55 +50,12 @@ source("generate-data.R")
 source("hsbar.R")
 source("cv-hsbar.R")
 source("hsbar-bea.R")
-source("cv-chan-sbar.R") # also sources chan-sbar-admm.R -> chan_sbar_bea
+source("cv-chan-sbar.R")
+source("chan-sbar-bea.R")
 
 # ============================================================
 # Scenario dispatch
 # ============================================================
-
-SCENARIO_INFO <- list(
-  `1` = list(
-    n = 300L, p = 1L, m0 = 2L,
-    breaks    = c(100L, 200L),
-    phi_list  = list(c(-0.6), c(0.75), c(-0.8)),
-    sigma_vec = NULL # filled from sigma_arg below
-  ),
-  `2` = list(
-    n = 300L, p = 1L, m0 = 2L,
-    breaks    = c(50L, 250L),
-    phi_list  = list(c(-0.6), c(0.75), c(-0.8)),
-    sigma_vec = NULL # filled from sigma_arg below
-  ),
-  `3` = list(
-    n = 300L, p = 2L, m0 = 2L,
-    breaks    = c(100L, 200L),
-    phi_list  = list(c(0.4, 0.2), c(0.5, 0.1), c(0.3, 0.2)),
-    sigma_vec = NULL # filled from sigma_arg below
-  ),
-  `4` = list(
-    n = 500L, p = 1L, m0 = 2L,
-    breaks    = c(150L, 350L),
-    phi_list  = list(c(0.5), c(0.9), c(0.2)),
-    sigma_vec = c(0.1, 0.4, 0.15)
-  ),
-  `5` = list(
-    n = 300L, p = 1L, m0 = 2L,
-    breaks    = c(100L, 200L),
-    phi_list  = list(c(0.5), c(0.9), c(0.2)),
-    sigma_vec = c(0.1, 0.4, 0.15)
-  )
-)
-
-info <- SCENARIO_INFO[[as.character(scenario_arg)]]
-if (scenario_arg %in% 1:3) info$sigma_vec <- rep(sigma_arg, 3L)
-if (scenario_arg %in% 4:5) info$sigma_vec <- c(0.1, 0.4, 0.15) * sigma_scale_arg
-
-N              <- info$n
-P              <- info$p
-M0             <- info$m0
-TRUE_BREAKS    <- info$breaks
-TRUE_PHI       <- info$phi_list
-TRUE_SIGMA_VEC <- info$sigma_vec
 
 GENERATE_FN <- switch(as.character(scenario_arg),
   "1" = function(seed) generate_scenario1(seed = seed, sigma = sigma_arg),
@@ -105,6 +64,14 @@ GENERATE_FN <- switch(as.character(scenario_arg),
   "4" = function(seed) generate_scenario4(seed = seed, sigma_scale = sigma_scale_arg),
   "5" = function(seed) generate_scenario5(seed = seed, sigma_scale = sigma_scale_arg)
 )
+
+meta           <- GENERATE_FN(seed = 0L)
+N              <- meta$n
+P              <- meta$p
+TRUE_BREAKS    <- meta$break_points
+M0             <- length(TRUE_BREAKS)
+TRUE_PHI       <- meta$phi_list
+TRUE_SIGMA_VEC <- meta$sigma_vec
 
 # ============================================================
 # Tuning parameters (fixed across reps)
@@ -218,7 +185,7 @@ one_rep <- function(seed, lambda_sbar, lambda_chan, c_scale) {
   )
 
   # -- Chan SBAR ---------------------------------------------------------
-  chan_s1 <- chan_s2 <- NULL
+  chan_s1 <- chan_s2_rss <- chan_s2_sigma <- chan_s2_prof <- NULL
   chan_best_lambda <- NA_real_
 
   tryCatch(
@@ -233,9 +200,19 @@ one_rep <- function(seed, lambda_sbar, lambda_chan, c_scale) {
         fit_c$cp, fit_c$beta, fit_c$sigma2,
         dat$Y, true_beta, true_sigma2, n, p
       )
-      bea_c <- chan_sbar_bea(fit_c, y = dat$Y, p = p)
-      chan_s2 <- compute_metrics(
-        bea_c$cp, bea_c$beta, bea_c$sigma2,
+      bea_rss   <- chan_sbar_bea(fit_c, y = dat$Y, p = p, ic_type = "rss")
+      bea_sigma <- chan_sbar_bea(fit_c, y = dat$Y, p = p, ic_type = "sigma_scaled")
+      bea_prof  <- chan_sbar_bea(fit_c, y = dat$Y, p = p, ic_type = "profile_lik")
+      chan_s2_rss <- compute_metrics(
+        bea_rss$cp, bea_rss$beta, bea_rss$sigma2,
+        dat$Y, true_beta, true_sigma2, n, p
+      )
+      chan_s2_sigma <- compute_metrics(
+        bea_sigma$cp, bea_sigma$beta, bea_sigma$sigma2,
+        dat$Y, true_beta, true_sigma2, n, p
+      )
+      chan_s2_prof <- compute_metrics(
+        bea_prof$cp, bea_prof$beta, bea_prof$sigma2,
         dat$Y, true_beta, true_sigma2, n, p
       )
     },
@@ -248,7 +225,9 @@ one_rep <- function(seed, lambda_sbar, lambda_chan, c_scale) {
     sbar_s1          = sbar_s1,
     sbar_s2          = sbar_s2,
     chan_s1          = chan_s1,
-    chan_s2          = chan_s2,
+    chan_s2_rss      = chan_s2_rss,
+    chan_s2_sigma     = chan_s2_sigma,
+    chan_s2_prof      = chan_s2_prof,
     sbar_best_lambda = sbar_best_lambda,
     chan_best_lambda  = chan_best_lambda
   )
@@ -276,7 +255,16 @@ cat(sprintf(
   "Chan SBAR: %d lambda values on [%.2g, %.2g]\n",
   length(LAMBDA_CHAN), min(LAMBDA_CHAN), max(LAMBDA_CHAN)
 ))
+rds_label <- if (scenario_arg %in% 1:3) {
+  sprintf("scenario%d-sigma%.4g", scenario_arg, sigma_arg)
+} else {
+  sprintf("scenario%d-sigscale%.4g", scenario_arg, sigma_scale_arg)
+}
+dir.create(outdir_arg, showWarnings = FALSE, recursive = TRUE)
+rds_path <- file.path(outdir_arg, sprintf("run-sim-%s-results.rds", rds_label))
+
 cat(sprintf("Running %d replications (seeds 1..%d) ...\n\n", N_REP, N_REP))
+cat(sprintf("Results will be saved incrementally to %s\n\n", rds_path))
 
 t_start <- proc.time()
 results <- vector("list", N_REP)
@@ -284,17 +272,10 @@ for (i in seq_len(N_REP)) {
   cat(sprintf("[%3d/%d]", i, N_REP))
   results[[i]] <- one_rep(i, LAMBDA_SBAR, LAMBDA_CHAN, C_SCALE)
   cat("\n")
+  saveRDS(results[seq_len(i)], rds_path)
 }
 elapsed <- (proc.time() - t_start)[["elapsed"]]
 cat(sprintf("\nTotal elapsed: %.1f s  (%.1f s/rep)\n\n", elapsed, elapsed / N_REP))
-
-rds_label <- if (scenario_arg %in% 1:3) {
-  sprintf("scenario%d-sigma%.4g", scenario_arg, sigma_arg)
-} else {
-  sprintf("scenario%d-sigscale%.4g", scenario_arg, sigma_scale_arg)
-}
-rds_path <- sprintf("run-sim-%s-results.rds", rds_label)
-saveRDS(results, rds_path)
 cat(sprintf("Results saved to %s\n\n", rds_path))
 
 # ============================================================
@@ -356,8 +337,10 @@ summarise_variant <- function(results, variant, m0) {
 # Print results
 # ============================================================
 
-VARIANTS <- c("sbar_s1", "sbar_s2", "chan_s1", "chan_s2")
-LABELS   <- c("H-SBAR S1", "H-SBAR S2", "Chan S1", "Chan S2")
+VARIANTS <- c("sbar_s1", "sbar_s2", "chan_s1",
+              "chan_s2_rss", "chan_s2_sigma", "chan_s2_prof")
+LABELS   <- c("H-SBAR S1", "H-SBAR S2", "Chan S1",
+              "Chan S2 RSS", "Chan S2 sigma", "Chan S2 PL")
 
 sums <- lapply(VARIANTS, function(v) summarise_variant(results, v, M0))
 names(sums) <- VARIANTS
