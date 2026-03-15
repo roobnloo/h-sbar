@@ -19,7 +19,7 @@ ic_type <- "sigma_scaled"
 # -----------------------------------------------------------------------
 # 1. Generate data
 # -----------------------------------------------------------------------
-dat <- generate_scenario10(seed = 1)
+dat <- generate_scenario3(seed = 1)
 cat(
   "True break points: t =", dat$break_points, "\n",
   " phi per regime  :", sapply(dat$phi_list, function(x) x[1L]), "\n",

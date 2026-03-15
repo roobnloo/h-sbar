@@ -1,9 +1,8 @@
 # generate-data.R
 # Simulation data generators for piecewise-stationary AR(p) processes.
-# Scenarios 1-5 adapted from Safikhani & Shojaie (2022).
-# Scenarios 6-7 adapted from Chan et al. (2014).
-# Scenarios 8-9 are CV-friendly variants of 6-7 (moderate AR, controlled SNR).
-# Scenario 10 is a variance-dominated variant of 9 (tiny phi jumps, large sigma ratio).
+# Scenario 1 adapted from Chan et al. (2014): CV-friendly dyadic AR(2), coefficient breaks only.
+# Scenario 2: CV-friendly equal-thirds AR(2), coefficient and variance breaks.
+# Scenario 3: Variance-dominated breaks, moderate coefficient signal.
 
 #' Generate a piecewise-stationary AR(p) process (core generator)
 #'
@@ -14,7 +13,7 @@
 #' @param phi_list    List of AR coefficient vectors (no intercept), one per
 #'   regime; each has length p.
 #' @param sigma_vec   Numeric vector of innovation std devs, one per regime.
-#' @param noise_ar    AR(1) coefficient for correlated noise (0 = i.i.d. Gaussian).
+#' @param noise_ar    AR(1) coefficient for correlated noise (0 = i.i.d. Gaussian)
 #' @param seed        RNG seed
 #' @return List: Y, n, p, break_points, phi_list, sigma_vec, true_sigma2
 generate_ar_piecewise <- function(n, break_points, phi_list, sigma_vec,
@@ -72,154 +71,13 @@ generate_ar_piecewise <- function(n, break_points, phi_list, sigma_vec,
 }
 
 
-#' Scenario 1: Baseline (centre breaks, constant variance)
+#' Scenario 1: CV-friendly dyadic AR(2), breaks in coefficients only.
 #'
-#' T=300, p=1, m0=2. Breaks at t=100 and t=200.
-#' Large coefficient jumps; variance constant at sigma.
-#' Reference: Safikhani & Shojaie (2022), low-noise benchmark.
-#'
-#' @param seed RNG seed
-#' @return List from generate_ar_piecewise
-generate_scenario1 <- function(seed = 42, sigma = 1) {
-  generate_ar_piecewise(
-    n            = 300L,
-    break_points = c(100L, 200L),
-    phi_list     = list(c(-0.6), c(0.75), c(-0.8)),
-    sigma_vec    = c(sigma, sigma, sigma),
-    seed         = seed
-  )
-}
-
-
-#' Scenario 2: Boundary sensitivity (breaks near endpoints)
-#'
-#' T=300, p=1, m0=2. Breaks at t=50 and t=250.
-#' Tests detection when a regime occupies few observations.
-#' Same coefficient jumps as Scenario 1; constant variance.
-#'
-#' @param seed  RNG seed
-#' @param sigma Innovation std dev (constant across regimes, default 0.1)
-#' @return List from generate_ar_piecewise
-generate_scenario2 <- function(seed = 42, sigma = 0.1) {
-  generate_ar_piecewise(
-    n            = 300L,
-    break_points = c(50L, 250L),
-    phi_list     = list(c(-0.6), c(0.75), c(-0.8)),
-    sigma_vec    = c(sigma, sigma, sigma),
-    seed         = seed
-  )
-}
-
-
-#' Scenario 3: Small-jump detection (lower signal-to-noise)
-#'
-#' T=300, p=2, m0=2. Breaks at t=100 and t=200.
-#' Small coefficient changes across regimes; constant variance.
-#'
-#' @param seed  RNG seed
-#' @param sigma Innovation std dev (constant across regimes, default 0.1)
-#' @return List from generate_ar_piecewise
-generate_scenario3 <- function(seed = 42, sigma = 0.1) {
-  generate_ar_piecewise(
-    n = 300L,
-    break_points = c(100L, 200L),
-    phi_list = list(
-      c(0.4, 0.2),
-      c(0.5, 0.1),
-      c(0.3, 0.2)
-    ),
-    sigma_vec = c(sigma, sigma, sigma),
-    seed = seed
-  )
-}
-
-
-#' Scenario 4: Joint coefficient and variance shift (primary target case)
-#'
-#' T=500, p=1, m0=2. Breaks at t=150 and t=350.
-#' Regime 2 ("crisis") has high persistence and high noise.
-#' This is the main scenario for evaluating the H-SBAR joint penalty.
-#'
-#' @param seed        RNG seed
-#' @param sigma_scale Multiplier applied to all sigma values (default 1).
-#'   Base sigma_vec is c(0.1, 0.4, 0.15); multiply by sigma_scale to rescale.
-#' @return List from generate_ar_piecewise
-generate_scenario4 <- function(seed = 42, sigma_scale = 1) {
-  generate_ar_piecewise(
-    n            = 500L,
-    break_points = c(150L, 350L),
-    phi_list     = list(c(0.5), c(0.9), c(0.2)),
-    sigma_vec    = c(0.1, 0.4, 0.15) * sigma_scale,
-    seed         = seed
-  )
-}
-
-
-#' Scenario 5: Model misspecification (correlated AR(1) errors)
-#'
-#' T=300, p=1, m0=2. Break points at t=100 and t=200.
-#' Uses Scenario 4 dynamics but innovations follow an AR(1) process:
-#'   eps_t = 0.5 * eps_{t-1} + nu_t,  nu_t ~ N(0, 1).
-#' Tests robustness when the i.i.d. noise assumption is violated.
-#'
-#' @param seed        RNG seed
-#' @param sigma_scale Multiplier applied to all sigma values (default 1).
-#'   Base sigma_vec is c(0.1, 0.4, 0.15); multiply by sigma_scale to rescale.
-#' @return List from generate_ar_piecewise
-generate_scenario5 <- function(seed = 42, sigma_scale = 1) {
-  generate_ar_piecewise(
-    n            = 300L,
-    break_points = c(100L, 200L),
-    phi_list     = list(c(0.5), c(0.9), c(0.2)),
-    sigma_vec    = c(0.1, 0.4, 0.15) * sigma_scale,
-    noise_ar     = 0.5,
-    seed         = seed
-  )
-}
-
-
-#' Scenario 6: Dyadic piecewise-stationary AR(2) (Chan et al. 2014, Section 3.1)
-#'
-#' T=1024, p=2, m0=2. Breaks at t=513 and t=769.
-#' Regime 1 is AR(1) embedded in AR(2) (phi2=0); regimes 2-3 are near-unit-root
-#' AR(2) with shared phi2=-0.81. Replicates the dyadic simulation from Chan et
-#' al. (2014) used to benchmark the two-step SBAR procedure.
-#'
-#' @param seed RNG seed
-#' @return List from generate_ar_piecewise
-generate_scenario6 <- function(seed = 42, sigma = 1) {
-  generate_ar_piecewise(
-    n            = 1024L,
-    break_points = c(513L, 769L),
-    phi_list     = list(c(0.9, 0.0), c(1.69, -0.81), c(1.32, -0.81)),
-    sigma_vec    = c(sigma, sigma, sigma),
-    seed         = seed
-  )
-}
-
-
-#' Scenario 7: Dyadic piecewise-stationary AR(2) with variance shifts.
-#'
-#' @param seed RNG seed
-#' @return List from generate_ar_piecewise
-generate_scenario7 <- function(seed = 42, sigma_scale = 1) {
-  generate_ar_piecewise(
-    n            = 1002L,
-    break_points = c(334L, 668L),
-    phi_list     = list(c(0.9, 0.0), c(1.69, -0.81), c(1.32, -0.81)),
-    sigma_vec    = c(0.1, 0.4, 0.15) * sigma_scale,
-    seed         = seed
-  )
-}
-
-
-#' Scenario 8: CV-friendly dyadic AR(2), breaks in coefficients only.
-#'
-#' Mirrors scenario 6's break structure (n=1024, dyadic breaks at t=513 and
-#' t=769) but replaces the near-unit-root AR coefficients with moderate values
-#' well inside the stationarity triangle.  Constant innovation variance keeps
-#' the residual scale uniform, so the optimal lambda falls in a predictable
-#' range and CV works well over a small linear grid (e.g. seq(0.05, 0.35, 0.05)).
+#' Mirrors the dyadic break structure from Chan et al. (2014) (n=1024, breaks
+#' at t=513 and t=769) but uses moderate AR(2) coefficients well inside the
+#' stationarity triangle and constant innovation variance.  The optimal lambda
+#' falls in a predictable range and CV works well over a small linear grid
+#' (e.g. seq(0.05, 0.35, 0.05)).
 #'
 #' Regimes (all AR(2), all clearly stationary):
 #'   1. phi = ( 0.5,  0.0) -- moderate positive lag-1, no lag-2
@@ -231,7 +89,7 @@ generate_scenario7 <- function(seed = 42, sigma_scale = 1) {
 #' @param seed  RNG seed
 #' @param sigma Innovation std dev (constant across regimes, default 1).
 #' @return List from generate_ar_piecewise
-generate_scenario8 <- function(seed = 42, sigma = 1) {
+generate_scenario1 <- function(seed = 42, sigma = 1) {
   generate_ar_piecewise(
     n            = 1024L,
     break_points = c(513L, 769L),
@@ -242,15 +100,15 @@ generate_scenario8 <- function(seed = 42, sigma = 1) {
 }
 
 
-#' Scenario 9: CV-friendly equal-thirds AR(2), breaks in coefficients and variance.
+#' Scenario 2: CV-friendly equal-thirds AR(2), breaks in coefficients and variance.
 #'
 #' Mirrors scenario 7's break structure (n=1002, equal thirds at t=334 and
-#' t=668) and uses the same moderate AR(2) coefficients as scenario 8, but
-#' adds variance shifts at a 2:1 ratio (not the 4:1 ratio of scenario 7).
-#' The controlled heteroskedasticity keeps per-segment CV error manageable, so
-#' a small linear lambda grid (e.g. seq(0.05, 0.35, 0.05)) covers the optimum.
+#' t=668) and uses the same moderate AR(2) coefficients as scenario 1, but
+#' adds variance shifts at a 2:1 ratio.  The controlled heteroskedasticity
+#' keeps per-segment CV error manageable, so a small linear lambda grid
+#' (e.g. seq(0.05, 0.35, 0.05)) covers the optimum.
 #'
-#' Regimes (same AR(2) as scenario 8, sigma shifts by factor 2):
+#' Regimes (same AR(2) as scenario 1, sigma shifts by factor 2):
 #'   1. phi = ( 0.5,  0.0),  sigma = 0.5 * sigma_scale
 #'   2. phi = (-0.4,  0.3),  sigma = 1.0 * sigma_scale
 #'   3. phi = ( 0.6, -0.2),  sigma = 0.5 * sigma_scale
@@ -259,7 +117,7 @@ generate_scenario8 <- function(seed = 42, sigma = 1) {
 #' @param sigma_scale Multiplier applied to all sigma values (default 1).
 #'   Base sigma_vec is c(0.5, 1.0, 0.5).
 #' @return List from generate_ar_piecewise
-generate_scenario9 <- function(seed = 42, sigma_scale = 1) {
+generate_scenario2 <- function(seed = 42, sigma_scale = 1) {
   generate_ar_piecewise(
     n            = 1002L,
     break_points = c(334L, 668L),
@@ -270,12 +128,11 @@ generate_scenario9 <- function(seed = 42, sigma_scale = 1) {
 }
 
 
-#' Scenario 10: Variance-dominated breaks, moderate coefficient signal.
+#' Scenario 3: Variance-dominated breaks, moderate coefficient signal.
 #'
-#' Same equal-thirds structure as scenario 9 (n=1002, breaks at t=334 and
+#' Same equal-thirds structure as scenario 2 (n=1002, breaks at t=334 and
 #' t=668).  Coefficient jumps are moderate (~0.2-0.3 per component) — weaker
-#' than scenario 9 (|Delta phi1| ~ 0.9-1.0) but much stronger than the
-#' original scenario 10 (|Delta phi1| ~ 0.05).  The variance ratio is large
+#' than scenario 2 (|Delta phi1| ~ 0.9-1.0).  The variance ratio is large
 #' (5:1), so variance remains the dominant break signal, but the coefficient
 #' signal is now large enough for H-SBAR to leverage both channels.  A method
 #' insensitive to variance shifts will still struggle relative to H-SBAR.
@@ -293,7 +150,7 @@ generate_scenario9 <- function(seed = 42, sigma_scale = 1) {
 #' @param sigma_scale Multiplier applied to all sigma values (default 1).
 #'   Base sigma_vec is c(0.2, 1.0, 0.2).
 #' @return List from generate_ar_piecewise
-generate_scenario10 <- function(seed = 42, sigma_scale = 1) {
+generate_scenario3 <- function(seed = 42, sigma_scale = 1) {
   generate_ar_piecewise(
     n            = 1002L,
     break_points = c(334L, 668L),

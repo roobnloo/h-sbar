@@ -33,12 +33,15 @@ parse_arg <- function(args, key, default = NULL) {
 }
 
 scenario_str <- parse_arg(args, "scenario")
-if (is.null(scenario_str)) stop("--scenario=N is required (1-10)")
+if (is.null(scenario_str)) stop("--scenario=N is required (1-3)")
 scenario_arg <- as.integer(scenario_str)
-if (!scenario_arg %in% c(1:10)) stop("--scenario must be 1-10")
+if (!scenario_arg %in% c(1:3)) stop("--scenario must be 1-3")
 
 sigma_arg <- as.numeric(parse_arg(args, "sigma", "1"))
 sigma_scale_arg <- as.numeric(parse_arg(args, "sigscale", "1"))
+nrep_arg <- as.integer(parse_arg(args, "nrep", "100"))
+outdir_arg <- parse_arg(args, "outdir", "./sim")
+c_scale_arg <- as.numeric(parse_arg(args, "c_scale", "1"))
 nrep_arg <- as.integer(parse_arg(args, "nrep", "100"))
 outdir_arg <- parse_arg(args, "outdir", "./sim")
 
@@ -59,15 +62,8 @@ source("chan-sbar-bea.R")
 
 GENERATE_FN <- switch(as.character(scenario_arg),
   "1" = function(seed) generate_scenario1(seed = seed, sigma = sigma_arg),
-  "2" = function(seed) generate_scenario2(seed = seed, sigma = sigma_arg),
-  "3" = function(seed) generate_scenario3(seed = seed, sigma = sigma_arg),
-  "4" = function(seed) generate_scenario4(seed = seed, sigma_scale = sigma_scale_arg),
-  "5" = function(seed) generate_scenario5(seed = seed, sigma_scale = sigma_scale_arg),
-  "6" = function(seed) generate_scenario6(seed = seed, sigma = sigma_arg),
-  "7" = function(seed) generate_scenario7(seed = seed, sigma_scale = sigma_scale_arg),
-  "8" = function(seed) generate_scenario8(seed = seed, sigma = sigma_arg),
-  "9" = function(seed) generate_scenario9(seed = seed, sigma_scale = sigma_scale_arg),
-  "10" = function(seed) generate_scenario10(seed = seed, sigma_scale = sigma_scale_arg)
+  "2" = function(seed) generate_scenario2(seed = seed, sigma_scale = sigma_scale_arg),
+  "3" = function(seed) generate_scenario3(seed = seed, sigma_scale = sigma_scale_arg)
 )
 
 meta <- GENERATE_FN(seed = 0L)
@@ -85,7 +81,7 @@ TRUE_SIGMA_VEC <- meta$sigma_vec
 N_REP <- nrep_arg
 LAMBDA_SBAR <- seq(0.01, 0.15, by = 0.01)
 LAMBDA_CHAN <- seq(0.01, 0.15, by = 0.01)
-C_SCALE <- 1
+C_SCALE <- c_scale_arg
 
 # ============================================================
 # Helpers
@@ -168,7 +164,8 @@ one_rep <- function(seed, lambda_sbar, lambda_chan, c_scale) {
       cv_s <- cv_hsbar(dat$Y, p,
         lambda = lambda_sbar,
         c_scale = c_scale,
-        max_iter = 5000
+        max_iter = 5000,
+        verbose = FALSE
       )
       sbar_best_lambda <- cv_s$best$lambda
       fit_s <- hsbar(dat$Y, p,
@@ -199,7 +196,8 @@ one_rep <- function(seed, lambda_sbar, lambda_chan, c_scale) {
     {
       cv_c <- cv_chan_sbar(dat$Y, p,
         lambda = lambda_chan,
-        max_iter = 5000
+        max_iter = 5000,
+        verbose = FALSE
       )
       chan_best_lambda <- cv_c$best$lambda
       fit_c <- chan_sbar_admm(dat$Y, p,
@@ -247,7 +245,7 @@ one_rep <- function(seed, lambda_sbar, lambda_chan, c_scale) {
 # Main simulation loop
 # ============================================================
 
-run_label <- if (scenario_arg %in% c(1:3, 6L, 8L)) {
+run_label <- if (scenario_arg == 1L) {
   sprintf("Scenario %d  sigma=%.4g", scenario_arg, sigma_arg)
 } else {
   sprintf("Scenario %d  sigma_scale=%.4g", scenario_arg, sigma_scale_arg)
@@ -265,7 +263,7 @@ cat(sprintf(
   "Chan SBAR: %d lambda values on [%.2g, %.2g]\n",
   length(LAMBDA_CHAN), min(LAMBDA_CHAN), max(LAMBDA_CHAN)
 ))
-rds_label <- if (scenario_arg %in% c(1:3, 6L, 8L)) {
+rds_label <- if (scenario_arg == 1L) {
   sprintf("scenario%d-sigma%.4g", scenario_arg, sigma_arg)
 } else {
   sprintf("scenario%d-sigscale%.4g", scenario_arg, sigma_scale_arg)

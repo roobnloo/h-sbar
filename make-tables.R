@@ -1,20 +1,28 @@
-# plot/make-tables.R
+# make-tables.R
 # Print mean (SE) summary tables comparing H-SBAR vs Chan across simulation settings.
 #
-# Usage:  Rscript plot/make-tables.R
-#         (run from the project root)
+# Usage:  Rscript make-tables.R <sim_dir>
+#         (sim_dir defaults to "sim" if not provided)
 
 library(dplyr)
+
+# ============================================================
+# Parse arguments
+# ============================================================
+
+args <- commandArgs(trailingOnly = TRUE)
+sim_dir <- if (length(args) >= 1L) args[[1L]] else "sim"
+if (!dir.exists(sim_dir)) stop(sprintf("Directory not found: %s", sim_dir))
 
 # ============================================================
 # Locate result files
 # ============================================================
 
-rds_files <- list.files("sim",
+rds_files <- list.files(sim_dir,
   pattern = "^run-sim-.*-results\\.rds$",
   full.names = TRUE
 )
-if (length(rds_files) == 0L) stop("No results .rds files found in sim/")
+if (length(rds_files) == 0L) stop(sprintf("No results .rds files found in %s", sim_dir))
 
 # ============================================================
 # Flatten RDS results into a long data frame
@@ -27,7 +35,8 @@ method_labels <- c(
   chan_s2_sigma = "Chan sigma",
   chan_s2_prof  = "Chan profile"
 )
-scalar_metrics <- c("ncp", "hd", "mse", "beta_err", "sigma2_err")
+scalar_metrics <- c("correct_ncp", "hd", # "mse",
+                    "beta_err", "sigma2_err")
 
 parse_label <- function(path) {
   base <- sub("^run-sim-(.+)-results\\.rds$", "\\1", basename(path))
@@ -74,21 +83,21 @@ all_df <- bind_rows(lapply(rds_files, function(f) {
 # ============================================================
 
 metric_print_labels <- c(
-  ncp        = "# changepoints",
-  hd         = "Hausdorff dist.",
-  mse        = "Prediction MSE",
-  beta_err   = "AR coef. error",
-  sigma2_err = "sigma2 error"
+  correct_ncp = "Prop. correct m",
+  hd          = "Hausdorff dist.",
+  mse         = "Prediction MSE",
+  beta_err    = "AR coef. error",
+  sigma2_err  = "sigma2 error"
 )
 
-fmt_cell <- function(vals) {
+fmt_cell <- function(vals, is_prop = FALSE) {
   vals <- vals[!is.na(vals)]
   if (length(vals) == 0L) {
     return("      -      ")
   }
   m <- mean(vals)
   se <- sd(vals) / sqrt(length(vals))
-  sprintf("%.4f (%.4f)", m, se)
+  if (is_prop) sprintf("%.3f (%.3f)", m, se) else sprintf("%.4f (%.4f)", m, se)
 }
 
 col_w <- 18L
@@ -108,7 +117,7 @@ for (s in settings) {
 
   for (m in scalar_metrics) {
     row <- sprintf("%-18s", metric_print_labels[m])
-    for (mn in method_names) row <- paste0(row, sprintf(" %*s", col_w, fmt_cell(sub[[m]][sub$method == mn])))
+    for (mn in method_names) row <- paste0(row, sprintf(" %*s", col_w, fmt_cell(sub[[m]][sub$method == mn], is_prop = (m == "correct_ncp"))))
     cat(row, "\n")
   }
 }

@@ -17,7 +17,7 @@ source("hsbar-bea.R")
 # -----------------------------------------------------------------------
 # 1. Generate data
 # -----------------------------------------------------------------------
-dat <- generate_scenario10(seed = 5)
+dat <- generate_scenario3(seed = 5)
 cat(
   "True break points: t =", dat$break_points, "\n",
   " phi per regime  :", sapply(dat$phi_list, function(x) x[1L]), "\n",

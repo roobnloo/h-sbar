@@ -76,7 +76,7 @@ chan_sbar_cvxr_full <- function(y,
 set.seed(1)
 lambda <- 0.005
 
-for (scenario in 1:5) {
+for (scenario in 1:3) {
   cat("\n", rep("=", 60), "\n")
   cat("SCENARIO", scenario, "\n")
   cat(rep("=", 60), "\n")
@@ -84,9 +84,7 @@ for (scenario in 1:5) {
   dat <- switch(scenario,
     "1" = generate_scenario1(),
     "2" = generate_scenario2(),
-    "3" = generate_scenario3(),
-    "4" = generate_scenario4(),
-    "5" = generate_scenario5()
+    "3" = generate_scenario3()
   )
 
   y <- dat$Y
