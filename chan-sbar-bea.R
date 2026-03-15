@@ -60,7 +60,7 @@ chan_compute_ic_profile <- function(y, y_lag, cps, n, omega_n) {
     rows <- breaks[b]:(breaks[b + 1L] - 1L)
     n_j <- length(rows)
     rss_j <- chan_seg_rss(y[rows], y_lag[rows, , drop = FALSE])
-    total <- total + n_j * log(rss_j / n_j)
+    total <- total + (n_j / 2) * log(rss_j / n_j)
   }
   total + length(cps) * omega_n
 }

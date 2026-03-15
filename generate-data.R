@@ -15,12 +15,13 @@
 #' @param seed        RNG seed
 #' @return List: Y, n, p, break_points, phi_list, sigma_vec, true_sigma2
 generate_ar_piecewise <- function(n, break_points, phi_list, sigma_vec,
-                                  noise_ar = 0, seed = 42) {
+                                  noise_ar = 0, seed = 42, n_burnin = 200L) {
   n_regimes <- length(phi_list)
   stopifnot(length(sigma_vec) == n_regimes)
   stopifnot(length(break_points) == n_regimes - 1L)
 
   p <- length(phi_list[[1L]])
+  n_total <- n + p + n_burnin
 
   set.seed(seed)
 
@@ -31,29 +32,30 @@ generate_ar_piecewise <- function(n, break_points, phi_list, sigma_vec,
   }
 
   # Simulate (optionally correlated) noise over full burn-in + observation window
-  raw_noise <- rnorm(n + p)
+  raw_noise <- rnorm(n_total)
   if (noise_ar != 0) {
-    eps <- numeric(n + p)
+    eps <- numeric(n_total)
     eps[1L] <- raw_noise[1L]
-    for (i in seq(2L, n + p)) {
+    for (i in seq(2L, n_total)) {
       eps[i] <- noise_ar * eps[i - 1L] + raw_noise[i]
     }
   } else {
     eps <- raw_noise
   }
 
-  # Simulate the piecewise AR process (burn-in padding of length p)
-  Y <- numeric(n + p)
-  for (t in (p + 1L):(n + p)) {
-    t_obs <- t - p
-    r <- regime[t_obs]
+  # Simulate the piecewise AR process with proper burn-in
+  # t_obs <= 0 during burn-in (regime 1); t_obs in 1..n during observations
+  Y <- numeric(n_total)
+  for (t in (p + 1L):n_total) {
+    t_obs <- t - p - n_burnin
+    r <- if (t_obs >= 1L) regime[t_obs] else 1L
     phi <- phi_list[[r]]
     sigma <- sigma_vec[r]
     lags <- Y[(t - 1L):(t - p)]
     Y[t] <- sum(phi * lags) + sigma * eps[t]
   }
 
-  Y <- Y[(p + 1L):(n + p)]
+  Y <- Y[(p + n_burnin + 1L):n_total]
 
   list(
     Y            = Y,
@@ -168,6 +170,41 @@ generate_scenario5 <- function(seed = 42, sigma_scale = 1) {
     phi_list     = list(c(0.5), c(0.9), c(0.2)),
     sigma_vec    = c(0.1, 0.4, 0.15) * sigma_scale,
     noise_ar     = 0.5,
+    seed         = seed
+  )
+}
+
+
+#' Scenario 6: Dyadic piecewise-stationary AR(2) (Chan et al. 2014, Section 3.1)
+#'
+#' T=1024, p=2, m0=2. Breaks at t=513 and t=769.
+#' Regime 1 is AR(1) embedded in AR(2) (phi2=0); regimes 2-3 are near-unit-root
+#' AR(2) with shared phi2=-0.81. Replicates the dyadic simulation from Chan et
+#' al. (2014) used to benchmark the two-step SBAR procedure.
+#'
+#' @param seed RNG seed
+#' @return List from generate_ar_piecewise
+generate_scenario6 <- function(seed = 42, sigma = 1) {
+  generate_ar_piecewise(
+    n            = 1024L,
+    break_points = c(513L, 769L),
+    phi_list     = list(c(0.9, 0.0), c(1.69, -0.81), c(1.32, -0.81)),
+    sigma_vec    = c(sigma, sigma, sigma),
+    seed         = seed
+  )
+}
+
+
+#' Scenario 7: Dyadic piecewise-stationary AR(2) with variance shifts.
+#'
+#' @param seed RNG seed
+#' @return List from generate_ar_piecewise
+generate_scenario7 <- function(seed = 42, sigma_scale = 1) {
+  generate_ar_piecewise(
+    n            = 1024L,
+    break_points = c(513L, 769L),
+    phi_list     = list(c(0.9, 0.0), c(1.69, -0.81), c(1.32, -0.81)),
+    sigma_vec    = c(0.1, 0.4, 0.15) * sigma_scale,
     seed         = seed
   )
 }
