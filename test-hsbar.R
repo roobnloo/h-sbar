@@ -12,7 +12,7 @@ source("hsbar-bea.R")
 # -----------------------------------------------------------------------
 # 1. Generate data (Scenario 1)
 # -----------------------------------------------------------------------
-dat <- generate_scenario1(seed = 42)
+dat <- generate_scenario6(seed = 42)
 cat(
   "True break points: t =", dat$break_points, "\n",
   " phi per regime  :", sapply(dat$phi_list, function(x) x[1L]), "\n",
@@ -24,12 +24,15 @@ cat(
 # -----------------------------------------------------------------------
 cat("Fitting H-SBAR (joint penalty) ...\n")
 fit <- hsbar(
-  y        = dat$Y,
-  p        = dat$p,
-  lambda_n = 1e-3,
-  c_scale  = 0.1,
-  solver   = "CLARABEL",
-  thr      = 1e-5
+  y = dat$Y,
+  p = dat$p,
+  lambda = 1e-3,
+  c_scale = 1,
+  alpha0 = 1,
+  max_iter = 5000,
+  # restart = FALSE,
+  thr = 1e-5,
+  verbose = TRUE
 )
 cat("Solver status:", fit$status, "\n\n")
 

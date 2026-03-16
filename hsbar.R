@@ -26,6 +26,8 @@
 #'                  (default 1e-6)
 #' @param thr       Zero-threshold for changepoint detection (default 1e-3)
 #' @param restart   Apply gradient-based momentum restart? (default TRUE)
+#' @param scale_y   Standardise y by sd(y[keep_rows]) before fitting to
+#'                  improve conditioning when sigma is large? (default TRUE)
 #' @param verbose   Print iteration log?
 #'
 #' @return List: theta, psi, phi_vec, sigma2, beta,
@@ -41,6 +43,7 @@ hsbar <- function(y,
                      tol = 1e-6,
                      thr = 1e-3,
                      restart = TRUE,
+                     scale_y = TRUE,
                      verbose = FALSE,
                      init_theta = NULL,
                      init_psi = NULL) {
@@ -49,7 +52,17 @@ hsbar <- function(y,
   n_tr <- length(keep_rows)
 
   # -----------------------------------------------------------------------
-  # 1. Lagged regressor matrix: y_lag[t, k] = y[t-k], pre-sample = 0
+  # 1. Standardise y so the Lipschitz constant is O(1) regardless of sigma.
+  #    Scaling y before the lag matrix is built automatically scales y_lag
+  #    by the same factor, keeping the AR likelihood internally consistent.
+  #    phi and sigma2 are restored to original units after the solver.
+  # -----------------------------------------------------------------------
+  y_scale <- if (scale_y) sd(y[keep_rows]) else 1.0
+  if (y_scale < 1e-10) y_scale <- 1.0
+  y <- y / y_scale
+
+  # -----------------------------------------------------------------------
+  # 2. Lagged regressor matrix: y_lag[t, k] = y[t-k], pre-sample = 0
   # -----------------------------------------------------------------------
   y_ext <- c(rep(0, p), y)
   y_lag <- matrix(0, n, p)
@@ -61,7 +74,7 @@ hsbar <- function(y,
   y_tr <- y[keep_rows] # n_tr
 
   # -----------------------------------------------------------------------
-  # 2. Cumulative-sum helpers (replace the O(n * n_tr) l_sub matrix)
+  # 3. Cumulative-sum helpers (replace the O(n * n_tr) l_sub matrix)
   #    fwd_cumsum: cumsum of an n-vector evaluated at the training rows
   #    bwd_cumsum: scatter n_tr-vector to length n, then reverse cumsum
   #      t(l_sub) %*% x  =  rev(cumsum(rev(z)))  where z[keep_rows] = x
@@ -83,7 +96,7 @@ hsbar <- function(y,
   }
 
   # -----------------------------------------------------------------------
-  # 3. Smooth loss  f = (1 / n_tr) * L_nat
+  # 4. Smooth loss  f = (1 / n_tr) * L_nat
   # -----------------------------------------------------------------------
   compute_f <- function(g, phi) {
     if (any(phi <= 0)) {
@@ -93,7 +106,7 @@ hsbar <- function(y,
   }
 
   # -----------------------------------------------------------------------
-  # 4. Penalty  g = lambda * sum_{i>=2} ||[theta_i; sqrt(c)*psi_i]||_2
+  # 5. Penalty  g = lambda * sum_{i>=2} ||[theta_i; sqrt(c)*psi_i]||_2
   # -----------------------------------------------------------------------
   compute_g_pen <- function(th, ps) {
     if (n == 1) {
@@ -104,7 +117,7 @@ hsbar <- function(y,
   }
 
   # -----------------------------------------------------------------------
-  # 5. Gradients of f
+  # 6. Gradients of f
   # -----------------------------------------------------------------------
   compute_grad <- function(g, phi) {
     delta <- g / phi - y_tr
@@ -115,7 +128,7 @@ hsbar <- function(y,
   }
 
   # -----------------------------------------------------------------------
-  # 6. Proximal operator: joint group soft-threshold
+  # 7. Proximal operator: joint group soft-threshold
   # -----------------------------------------------------------------------
   prox_g <- function(a_th, a_ps, alpha) {
     if (n == 1) {
@@ -131,7 +144,7 @@ hsbar <- function(y,
   }
 
   # -----------------------------------------------------------------------
-  # 7. Initialise
+  # 8. Initialise
   #    w = true iterate; m = extrapolated point (start equal); s = momentum
   # -----------------------------------------------------------------------
   if (!is.null(init_theta) && !is.null(init_psi)) {
@@ -149,7 +162,7 @@ hsbar <- function(y,
   n_iter <- max_iter
 
   # -----------------------------------------------------------------------
-  # 8. FISTA main loop
+  # 9. FISTA main loop
   # -----------------------------------------------------------------------
   for (iter in seq_len(max_iter)) {
     # Gradient at the extrapolated point m
@@ -228,15 +241,21 @@ hsbar <- function(y,
   }
 
   # -----------------------------------------------------------------------
-  # 9. Recover original parameters from natural parametrisation
+  # 10. Recover original parameters from natural parametrisation
   # -----------------------------------------------------------------------
   phi_hat <- cumsum(psi)
   gamma_hat <- apply(theta, 2, cumsum)
   sigma2_hat <- ifelse(phi_hat > 0, 1 / phi_hat, NA_real_)
   beta_hat <- sweep(gamma_hat, 1, phi_hat, "/")
 
+  # Restore phi and sigma2 to original (unscaled) units.
+  # The solver worked on y/y_scale, so phi_hat = y_scale^2 * phi_orig and
+  # sigma2_hat = sigma2_orig / y_scale^2.  beta_hat is scale-invariant.
+  phi_hat    <- phi_hat    / y_scale^2
+  sigma2_hat <- sigma2_hat * y_scale^2
+
   # -----------------------------------------------------------------------
-  # 10. Detect changepoints
+  # 11. Detect changepoints
   # -----------------------------------------------------------------------
   theta_tail <- theta[-1L, , drop = FALSE]
   psi_tail <- psi[-1L]
@@ -247,7 +266,7 @@ hsbar <- function(y,
   cp_psi <- which(abs(psi_tail) > thr) + 1L
 
   # -----------------------------------------------------------------------
-  # 11. Post-processing: boundary trim and minimum-spacing filter
+  # 12. Post-processing: boundary trim and minimum-spacing filter
   #     - Drop candidates within p+3 of start or at the final index n
   #     - Of any two adjacent candidates with gap <= p+1, drop the earlier
   # -----------------------------------------------------------------------

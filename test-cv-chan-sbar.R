@@ -19,7 +19,7 @@ ic_type <- "sigma_scaled"
 # -----------------------------------------------------------------------
 # 1. Generate data
 # -----------------------------------------------------------------------
-dat <- generate_scenario1(seed = 40, sigma = 0.1)
+dat <- generate_scenario7(seed = 40, sigma_scale = 2)
 cat(
   "True break points: t =", dat$break_points, "\n",
   " phi per regime  :", sapply(dat$phi_list, function(x) x[1L]), "\n",
@@ -32,7 +32,7 @@ cat(
 #    val_spacing defaults to max(p+1, round(n/10)) = 30 with n=300, p=1,
 #    giving ~9 equally spaced validation points.
 # -----------------------------------------------------------------------
-lambda_path <- 10^seq(-4, 0, length.out = 100)
+lambda_path <- 10^seq(-3, -1, length.out = 100)
 
 cat("Running interpolation CV over lambda path ...\n")
 cat(sprintf(
@@ -46,7 +46,7 @@ cv <- cv_chan_sbar(
   y       = dat$Y,
   p       = dat$p,
   lambda  = lambda_path,
-  verbose = FALSE
+  verbose = TRUE
 )
 
 # -----------------------------------------------------------------------
@@ -91,7 +91,7 @@ cat("(True coefficient breaks at t =", dat$break_points, ")\n\n")
 # -----------------------------------------------------------------------
 # 7. Stage 2: BEA screening under all three IC criteria
 # -----------------------------------------------------------------------
-ic_types  <- c("rss", "sigma_scaled", "profile_lik")
+ic_types <- c("rss", "sigma_scaled", "profile_lik")
 ic_labels <- c("RSS", "Sigma-scaled", "Profile likelihood")
 
 cat("Running BEA screening (Chan 2014 Section 2.2) ...\n\n")
@@ -107,9 +107,11 @@ for (i in seq_along(ic_types)) {
   regimes <- sort(unique(c(1L, b$cp)))
   for (r in seq_along(regimes)) {
     t_start <- regimes[r]
-    t_end   <- if (r < length(regimes)) regimes[r + 1L] - 1L else dat$n
-    cat(sprintf("  t=%d..%d  AR1=%.3f  sigma2=%.3f\n",
-                t_start, t_end, b$beta[t_start, 1L], b$sigma2[t_start]))
+    t_end <- if (r < length(regimes)) regimes[r + 1L] - 1L else dat$n
+    cat(sprintf(
+      "  t=%d..%d  AR1=%.3f  sigma2=%.3f\n",
+      t_start, t_end, b$beta[t_start, 1L], b$sigma2[t_start]
+    ))
   }
   cat("\n")
 }
@@ -122,20 +124,21 @@ for (i in seq_along(ic_types)) {
   b <- bea_list[[i]]
   plot(dat$Y,
     type = "l",
-    main = sprintf("BEA — %s  (cp: %s)",
+    main = sprintf(
+      "BEA — %s  (cp: %s)",
       ic_labels[i],
       if (length(b$cp) == 0L) "none" else paste(b$cp, collapse = ", ")
     ),
     xlab = "t", ylab = "Y"
   )
-  for (t in dat$break_points) abline(v = t, col = "red",      lty = 2, lwd = 2)
-  for (t in fit$cp)           abline(v = t, col = "darkgray", lty = 3)
-  for (t in b$cp)             abline(v = t, col = "blue",     lty = 2, lwd = 2)
+  for (t in dat$break_points) abline(v = t, col = "red", lty = 2, lwd = 2)
+  for (t in fit$cp) abline(v = t, col = "darkgray", lty = 3)
+  for (t in b$cp) abline(v = t, col = "blue", lty = 2, lwd = 2)
   if (i == 1L) {
     legend("topleft",
       legend = c("True break", "Stage 1 (LASSO)", "Stage 2 (BEA)"),
-      col    = c("red", "darkgray", "blue"),
-      lty    = c(2, 3, 2), bty = "n", cex = 0.8
+      col = c("red", "darkgray", "blue"),
+      lty = c(2, 3, 2), bty = "n", cex = 0.8
     )
   }
 }
