@@ -28,10 +28,14 @@
 #' @param restart   Apply gradient-based momentum restart? (default TRUE)
 #' @param scale_y   Standardise y by sd(y[keep_rows]) before fitting to
 #'                  improve conditioning when sigma is large? (default TRUE)
+#' @param eps_tol   Stop if the objective changes by less than this between
+#'                  iterations (default 1e-8).
 #' @param verbose   Print iteration log?
 #'
 #' @return List: theta, psi, phi_vec, sigma2, beta,
-#'               cp, cp_theta, cp_psi, obj_val, n_iter
+#'               cp, cp_theta, cp_psi, obj_val, n_iter, stop_crit.
+#'   \code{stop_crit} is one of \code{"pg_norm"}, \code{"obj_change"},
+#'   or \code{"max_iter"}.
 hsbar <- function(y,
                      p = 1,
                      lambda = 0.1,
@@ -44,6 +48,7 @@ hsbar <- function(y,
                      thr = 1e-3,
                      restart = TRUE,
                      scale_y = TRUE,
+                     eps_tol = 1e-8,
                      verbose = FALSE,
                      init_theta = NULL,
                      init_psi = NULL) {
@@ -159,7 +164,9 @@ hsbar <- function(y,
   m_ps <- psi
   s <- 1
 
-  n_iter <- max_iter
+  n_iter    <- max_iter
+  obj_prev  <- Inf
+  stop_crit <- "max_iter"
 
   # -----------------------------------------------------------------------
   # 9. FISTA main loop
@@ -226,18 +233,27 @@ hsbar <- function(y,
     psi <- ps_new
     s <- s_new
 
+    f_cur   <- compute_f(gp_new$g, gp_new$phi)
+    g_pen   <- compute_g_pen(theta, psi)
+    obj_cur <- f_cur + g_pen
+
     if (verbose) {
-      g_pen <- compute_g_pen(theta, psi)
-      f_cur <- compute_f(gp_new$g, gp_new$phi)
       rst <- if (do_restart) " R" else "  "
       fmt <- "iter %4d%s| f=%.6f | g=%.6f | Q=%.6f | pg=%.2e | a=%.2e"
-      message(sprintf(fmt, iter, rst, f_cur, g_pen, f_cur + g_pen, pg_norm, alpha))
+      message(sprintf(fmt, iter, rst, f_cur, g_pen, obj_cur, pg_norm, alpha))
     }
 
     if (pg_norm < tol) {
+      stop_crit <- "pg_norm"
       n_iter <- iter
       break
     }
+    if (abs(obj_cur - obj_prev) < eps_tol) {
+      stop_crit <- "obj_change"
+      n_iter <- iter
+      break
+    }
+    obj_prev <- obj_cur
   }
 
   # -----------------------------------------------------------------------
@@ -294,7 +310,8 @@ hsbar <- function(y,
     cp       = cp,
     cp_theta = cp_theta,
     cp_psi   = cp_psi,
-    obj_val  = obj_val,
-    n_iter   = n_iter
+    obj_val   = obj_val,
+    n_iter    = n_iter,
+    stop_crit = stop_crit
   )
 }

@@ -44,11 +44,15 @@
 #'                 (default 1e-6).
 #' @param thr      Zero-threshold for changepoint detection (default 1e-3).
 #' @param restart  Apply gradient-based momentum restart? (default TRUE).
+#' @param eps_tol  Stop if the objective changes by less than this between
+#'                 iterations (default 1e-8).
 #' @param verbose  Print iteration log? (default FALSE).
 #' @param init_theta  Warm-start matrix for theta (n x p).
 #'
 #' @return List: theta, psi (NULL), phi_vec (NULL), sigma2, beta,
-#'               cp, cp_theta, cp_psi (NULL), obj_val, n_iter.
+#'               cp, cp_theta, cp_psi (NULL), obj_val, n_iter, stop_crit.
+#'   \code{stop_crit} is one of \code{"pg_norm"}, \code{"obj_change"},
+#'   or \code{"max_iter"}.
 chan_sbar_admm <- function(y,
                            p = 1,
                            lambda = 0.1,
@@ -59,6 +63,7 @@ chan_sbar_admm <- function(y,
                            tol = 1e-6,
                            thr = 1e-3,
                            restart = TRUE,
+                           eps_tol = 1e-8,
                            verbose = FALSE,
                            init_theta = NULL) {
   n <- length(y)
@@ -146,9 +151,11 @@ chan_sbar_admm <- function(y,
     theta <- matrix(0, n, p)
   }
 
-  m_th <- theta
-  s <- 1
-  n_iter <- max_iter
+  m_th      <- theta
+  s         <- 1
+  n_iter    <- max_iter
+  obj_prev  <- Inf
+  stop_crit <- "max_iter"
 
   # -----------------------------------------------------------------------
   # 8. FISTA main loop
@@ -199,18 +206,26 @@ chan_sbar_admm <- function(y,
     theta <- th_new
     s <- s_new
 
+    obj_cur <- f_new + compute_g_pen(theta)
+
     if (verbose) {
       g_pen <- compute_g_pen(theta)
-      f_cur <- compute_f(theta)
       rst <- if (do_restart) " R" else "  "
       fmt <- "iter %4d%s| f=%.6f | g=%.6f | Q=%.6f | pg=%.2e | a=%.2e"
-      message(sprintf(fmt, iter, rst, f_cur, g_pen, f_cur + g_pen, pg_norm, alpha))
+      message(sprintf(fmt, iter, rst, f_new, g_pen, obj_cur, pg_norm, alpha))
     }
 
     if (pg_norm < tol) {
+      stop_crit <- "pg_norm"
       n_iter <- iter
       break
     }
+    if (abs(obj_cur - obj_prev) < eps_tol) {
+      stop_crit <- "obj_change"
+      n_iter <- iter
+      break
+    }
+    obj_prev <- obj_cur
   }
 
   # -----------------------------------------------------------------------
@@ -274,8 +289,9 @@ chan_sbar_admm <- function(y,
     cp       = cp,
     cp_theta = cp_theta,
     cp_psi   = NULL,
-    obj_val  = obj_val,
-    n_iter   = n_iter
+    obj_val   = obj_val,
+    n_iter    = n_iter,
+    stop_crit = stop_crit
   )
 }
 
