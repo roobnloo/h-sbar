@@ -17,7 +17,7 @@ source("hsbar-bea.R")
 # -----------------------------------------------------------------------
 # 1. Generate data
 # -----------------------------------------------------------------------
-dat <- generate_scenario1(seed = 1)
+dat <- generate_scenario7(seed = 6)
 cat(
   "True break points: t =", dat$break_points, "\n",
   " phi per regime  :", sapply(dat$phi_list, function(x) x[1L]), "\n",
@@ -30,7 +30,7 @@ cat(
 #    val_spacing defaults to max(p+1, round(n/10)) = 30 with n=300, p=1,
 #    giving ~9 equally spaced validation points.
 # -----------------------------------------------------------------------
-lambda_path <- 10^seq(-5, 0, length.out = 100)
+lambda_path <- 10^seq(-3, -1, length.out = 100)
 c_scale_fixed <- 1
 
 cat("Running interpolation CV over lambda path ...\n")
@@ -47,6 +47,9 @@ cv <- cv_hsbar(
   p = dat$p,
   lambda = lambda_path,
   c_scale = c_scale_fixed,
+  max_iter = 5000,
+  val_spacing = 50,
+  # scale_y = FALSE,
   verbose = TRUE
 )
 
@@ -80,6 +83,7 @@ fit <- hsbar(
   y = dat$Y,
   p = dat$p,
   lambda = best_ln,
+  max_iter = 5000,
   c_scale = c_scale_fixed
 )
 cat("Solver status:", fit$status, "\n\n")

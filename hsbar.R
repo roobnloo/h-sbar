@@ -28,8 +28,8 @@
 #' @param restart   Apply gradient-based momentum restart? (default TRUE)
 #' @param scale_y   Standardise y by sd(y[keep_rows]) before fitting to
 #'                  improve conditioning when sigma is large? (default TRUE)
-#' @param eps_tol   Stop if the objective changes by less than this between
-#'                  iterations (default 1e-8).
+#' @param eps_tol   Stop if the relative objective change falls below this
+#'                  between iterations: |dQ| < eps_tol*(1+|Q|) (default 1e-6).
 #' @param verbose   Print iteration log?
 #'
 #' @return List: theta, psi, phi_vec, sigma2, beta,
@@ -37,21 +37,21 @@
 #'   \code{stop_crit} is one of \code{"pg_norm"}, \code{"obj_change"},
 #'   or \code{"max_iter"}.
 hsbar <- function(y,
-                     p = 1,
-                     lambda = 0.1,
-                     c_scale = 1,
-                     keep_rows = NULL,
-                     alpha0 = 1,
-                     beta = 0.5,
-                     max_iter = 1000,
-                     tol = 1e-6,
-                     thr = 1e-3,
-                     restart = TRUE,
-                     scale_y = TRUE,
-                     eps_tol = 1e-8,
-                     verbose = FALSE,
-                     init_theta = NULL,
-                     init_psi = NULL) {
+                  p = 1,
+                  lambda = 0.1,
+                  c_scale = 1,
+                  keep_rows = NULL,
+                  alpha0 = 1,
+                  beta = 0.5,
+                  max_iter = 1000,
+                  tol = 1e-6,
+                  thr = 1e-3,
+                  restart = TRUE,
+                  scale_y = TRUE,
+                  eps_tol = 1e-6,
+                  verbose = FALSE,
+                  init_theta = NULL,
+                  init_psi = NULL) {
   n <- length(y)
   if (is.null(keep_rows)) keep_rows <- seq_len(n)
   n_tr <- length(keep_rows)
@@ -164,8 +164,8 @@ hsbar <- function(y,
   m_ps <- psi
   s <- 1
 
-  n_iter    <- max_iter
-  obj_prev  <- Inf
+  n_iter <- max_iter
+  obj_prev <- Inf
   stop_crit <- "max_iter"
 
   # -----------------------------------------------------------------------
@@ -204,9 +204,6 @@ hsbar <- function(y,
       }
     }
 
-    # Proximal gradient mapping norm at the true iterate (stopping criterion)
-    pg_norm <- sqrt(sum((th_new - theta)^2) + sum((ps_new - psi)^2)) / alpha
-
     # --- Momentum restart (O'Donoghue-Candes) ---
     # Reset when <w_new - w_old, m - w_new> > 0: the descent step overshoots
     # the momentum point, so momentum is fighting descent. Disable to run
@@ -233,8 +230,20 @@ hsbar <- function(y,
     psi <- ps_new
     s <- s_new
 
-    f_cur   <- compute_f(gp_new$g, gp_new$phi)
-    g_pen   <- compute_g_pen(theta, psi)
+    # True proximal gradient norm at the updated iterate.
+    # FISTA steps from extrapolated m, so ||th_new - theta_old|| / alpha mixes
+    # momentum with the gradient; G_alpha(theta) is zero at the optimum and
+    # converges monotonically rather than oscillating with the momentum.
+    # gp_new already holds compute_gp(theta, psi) since theta == th_new.
+    gp_t    <- gp_new
+    grad_t  <- compute_grad(gp_t$g, gp_t$phi)
+    prx_t   <- prox_g(theta - alpha * grad_t$grad_th,
+                      psi   - alpha * grad_t$grad_ps, alpha)
+    pg_norm <- sqrt(sum((prx_t$th - theta)^2) +
+                      sum((prx_t$ps - psi)^2)) / alpha
+
+    f_cur <- compute_f(gp_t$g, gp_t$phi)
+    g_pen <- compute_g_pen(theta, psi)
     obj_cur <- f_cur + g_pen
 
     if (verbose) {
@@ -248,7 +257,7 @@ hsbar <- function(y,
       n_iter <- iter
       break
     }
-    if (abs(obj_cur - obj_prev) < eps_tol) {
+    if (abs(obj_cur - obj_prev) < eps_tol * (1 + abs(obj_cur))) {
       stop_crit <- "obj_change"
       n_iter <- iter
       break
@@ -267,7 +276,7 @@ hsbar <- function(y,
   # Restore phi and sigma2 to original (unscaled) units.
   # The solver worked on y/y_scale, so phi_hat = y_scale^2 * phi_orig and
   # sigma2_hat = sigma2_orig / y_scale^2.  beta_hat is scale-invariant.
-  phi_hat    <- phi_hat    / y_scale^2
+  phi_hat <- phi_hat / y_scale^2
   sigma2_hat <- sigma2_hat * y_scale^2
 
   # -----------------------------------------------------------------------
@@ -298,20 +307,23 @@ hsbar <- function(y,
   cp_theta <- filter_cp(cp_theta)
   cp_psi <- filter_cp(cp_psi)
 
+  # obj_val is evaluated in the scaled (y/y_scale) units used by the solver.
+  # It differs from the original-unit likelihood by a constant log(y_scale)
+  # per observation, which does not affect optimization or changepoint detection.
   gp_final <- compute_gp(theta, psi)
   obj_val <- compute_f(gp_final$g, gp_final$phi) + compute_g_pen(theta, psi)
 
   list(
-    theta    = theta,
-    psi      = psi,
-    phi_vec  = phi_hat,
-    sigma2   = sigma2_hat,
-    beta     = beta_hat,
-    cp       = cp,
+    theta = theta,
+    psi = psi,
+    phi_vec = phi_hat,
+    sigma2 = sigma2_hat,
+    beta = beta_hat,
+    cp = cp,
     cp_theta = cp_theta,
-    cp_psi   = cp_psi,
-    obj_val   = obj_val,
-    n_iter    = n_iter,
+    cp_psi = cp_psi,
+    obj_val = obj_val,
+    n_iter = n_iter,
     stop_crit = stop_crit
   )
 }

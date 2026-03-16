@@ -5,8 +5,8 @@ source("hsbar.R")
 set.seed(1)
 lambda <- 0.005
 
-# Loop over scenarios 1 through 5
-for (scenario in 1:5) {
+# Loop over scenarios 1 through 3
+for (scenario in 1:3) {
   cat("\n", rep("=", 60), "\n")
   cat("SCENARIO", scenario, "\n")
   cat(rep("=", 60), "\n")
@@ -15,9 +15,7 @@ for (scenario in 1:5) {
   dat <- switch(scenario,
     "1" = generate_scenario1(),
     "2" = generate_scenario2(),
-    "3" = generate_scenario3(),
-    "4" = generate_scenario4(),
-    "5" = generate_scenario5()
+    "3" = generate_scenario3()
   )
 
   y <- dat$Y
@@ -40,7 +38,8 @@ for (scenario in 1:5) {
   time_fista <- system.time(
     fit_fista <- hsbar(y,
       p = p, lambda = lambda, alpha0 = 20,
-      max_iter = 2000, tol = 1e-6, restart = TRUE, verbose = FALSE
+      max_iter = 2000, tol = 1e-6, restart = TRUE,
+      scale_y = FALSE, eps_tol = 1e-8
     )
   )
 
