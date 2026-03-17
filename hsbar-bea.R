@@ -114,7 +114,7 @@ hsbar_bea <- function(fit, y, p = NULL, omega_n = NULL, ...) {
 
   n <- length(y)
   if (is.null(p)) p <- ncol(fit$beta)
-  if (is.null(omega_n)) omega_n <- (p + 1) * log(n) / 2
+  if (is.null(omega_n)) omega_n <- (p + 1) * log(n) # / 2
 
   # ---- lagged regressor matrix (same convention as hsbar.R) ----------------
   y_ext <- c(rep(0, p), y)

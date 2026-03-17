@@ -32,26 +32,43 @@ if (!exists("hsbar", mode = "function")) source("hsbar.R")
 #'                    Default: 10-point log grid on [1e-3, 1].
 #' @param c_scale     Fixed scale parameter c (Section 8.3).  Not cross-validated.
 #'                    Default 1.
-#' @param val_spacing Spacing s between validation points. Must be > p.
-#'                    Default: \code{max(p + 1, round(n / 10))}.
-#' @param verbose     Print per-lambda progress? Default TRUE.
+#' @param val_spacing         Spacing s between validation points. Must be > p.
+#'                            Default: 10.
+#' @param drop_poisoned_rows  If \code{TRUE}, also exclude the p rows following
+#'                            each validation point (rows \code{t+1..t+p}), which
+#'                            contain \code{Y_t} as a lagged predictor and would
+#'                            otherwise leak the held-out value into training.
+#'                            If \code{FALSE} (default), only the validation row
+#'                            itself is excluded, matching Abolfazl's implementation;
+#'                            this admits a small downward bias in the CV error.
+#' @param lambda_rule         One of \code{"min"} or \code{"1se"}.
+#'                            \code{"min"} (default) returns the lambda minimising MSPE.
+#'                            \code{"1se"} applies a 1-SE rule: among all
+#'                            lambdas \emph{at least as large} as the minimiser,
+#'                            selects the largest one whose MSPE is within one
+#'                            standard error of the minimum — preferring a more
+#'                            regularised model when the gain is not significant.
+#'                            Matches the spirit of Abolfazl's \code{cv.var} rule.
+#' @param verbose             Print per-lambda progress? Default TRUE.
 #' @param ...         Additional arguments forwarded to \code{hsbar()}
 #'                    (e.g. \code{solver}, \code{thr}).
 #'
 #' @return A list with:
 #' \describe{
-#'   \item{cv_table}{Data frame: lambda, mspe. One row per lambda value.}
-#'   \item{best}{One-row data frame with the lambda minimising MSPE.}
+#'   \item{cv_table}{Data frame: lambda, mspe, mspe_se. One row per lambda value.}
+#'   \item{best}{One-row data frame with the selected lambda (per \code{lambda_rule}).}
 #'   \item{val_points}{Integer vector of validation time indices.}
 #'   \item{keep_rows}{Integer vector of training row indices.}
 #' }
 cv_hsbar <- function(y,
-                        p = 1L,
-                        lambda = NULL,
-                        c_scale = 1,
-                        val_spacing = NULL,
-                        verbose = TRUE,
-                        ...) {
+                     p = 1L,
+                     lambda = NULL,
+                     c_scale = 1,
+                     val_spacing = 10L,
+                     drop_poisoned_rows = FALSE,
+                     lambda_rule = c("min", "1se"),
+                     verbose = TRUE,
+                     ...) {
   n <- length(y)
 
   # ---- build lambda path (decreasing for warm restarts) ------------------
@@ -60,15 +77,12 @@ cv_hsbar <- function(y,
   n_lambda <- length(lambda_vec)
 
   # ---- validation set ----------------------------------------------------
-  if (is.null(val_spacing)) {
-    val_spacing <- max(p + 1L, round(n / 10))
-  }
   if (val_spacing <= p) {
     stop(sprintf("val_spacing (%d) must be > p (%d).", val_spacing, p))
   }
 
   # Valid range: t >= p+1 (so all p lags exist) and t+p <= n
-  first_valid <- p + 1L
+  first_valid <- p + val_spacing
   last_valid <- n - p
   val_points <- seq(first_valid, last_valid, by = val_spacing)
   k <- length(val_points)
@@ -78,8 +92,15 @@ cv_hsbar <- function(y,
   }
 
   # ---- excluded rows for each validation point ---------------------------
+  # drop_poisoned_rows = TRUE : remove validation row + p downstream rows
+  #   (rows t+1..t+p contain Y_t as a lag, leaking the held-out value into training)
+  # drop_poisoned_rows = FALSE: remove only the validation row itself
+  #   (matches Safikhani & Shojaie 2022 / Abolfazl's implementation; admits a small
+  #    downward bias in CV error for lambda selection)
   excl_rows <- sort(unique(as.integer(
-    unlist(lapply(val_points, function(t) t:(t + p)))
+    unlist(lapply(val_points, function(t) {
+      if (drop_poisoned_rows) t:(t + p) else t
+    }))
   )))
   keep_rows <- setdiff(seq_len(n), excl_rows)
 
@@ -99,8 +120,12 @@ cv_hsbar <- function(y,
   # ---- l_val: cumsum selector for validation rows ------------------------
   l_val <- base::outer(val_points, seq_len(n), ">=") + 0L # k x n
 
+  lambda_rule <- match.arg(lambda_rule, c("min", "1se"))
+
   # ---- main CV loop ------------------------------------------------------
-  mspe <- numeric(n_lambda)
+  mspe    <- numeric(n_lambda)
+  sq_err  <- matrix(NA_real_, n_lambda, k)  # per-point squared errors (for SE)
+  cp_list <- vector("list", n_lambda)        # break points per lambda (for 1-SE)
   warm_theta <- NULL
   warm_psi <- NULL
 
@@ -128,8 +153,10 @@ cv_hsbar <- function(y,
       gamma_val <- l_val %*% fit$theta # k x q
       phi_val <- as.vector(l_val %*% fit$psi) # k
       beta_val <- sweep(gamma_val, 1, phi_val, "/") # k x q
-      y_hat <- rowSums(x_val * beta_val) # k predictions
-      mspe[j] <- mean((y_val - y_hat)^2)
+      y_hat       <- rowSums(x_val * beta_val) # k predictions
+      sq_err[j, ] <- (y_val - y_hat)^2
+      mspe[j]     <- mean(sq_err[j, ])
+      cp_list[[j]] <- fit$cp
     }
 
     if (verbose) {
@@ -142,8 +169,34 @@ cv_hsbar <- function(y,
   }
 
   # ---- assemble output ---------------------------------------------------
-  cv_table <- data.frame(lambda = lambda_vec, mspe = mspe)
-  best_idx <- which.min(mspe)
+  mspe_se  <- apply(sq_err, 1, sd) / sqrt(k)
+  cv_table <- data.frame(lambda = lambda_vec, mspe = mspe, mspe_se = mspe_se)
+
+  min_idx  <- which.min(mspe)
+  best_idx <- if (lambda_rule == "min") {
+    min_idx
+  } else {
+    # 1-SE: segment-wise residual variance, following Abolfazl's cv.var rule.
+    # For each validation point, find which regime it falls in (using the
+    # break points from the min-MSPE fit), compute the variance of squared
+    # errors within that regime, then aggregate:
+    #   cv_var = (1 / k) * sqrt( sum_j var(sq_err in segment of val_point j) )
+    # Note: Abolfazl uses all-time-point residuals for within-segment variance;
+    # here we use only validation-point squared errors, which is noisier but
+    # avoids a separate training-residual pass.
+    cp_min    <- cp_list[[min_idx]]   # break points for the min-MSPE fit
+    seg_id    <- vapply(val_points, function(t) sum(t > cp_min) + 1L, integer(1L))
+    seg_vars  <- tapply(sq_err[min_idx, ], seg_id, stats::var)
+    pt_var    <- as.numeric(seg_vars[as.character(seg_id)])
+    # singleton segments yield NA var — fall back to global variance
+    pt_var[is.na(pt_var)] <- stats::var(sq_err[min_idx, ], na.rm = TRUE)
+    cv_var    <- (1 / k) * sqrt(sum(pt_var, na.rm = TRUE))
+    threshold <- mspe[min_idx] + cv_var
+    # among more-regularised lambdas (indices <= min_idx), pick the largest
+    # lambda (smallest index) still within the threshold
+    candidates <- which(!is.na(mspe) & seq_len(n_lambda) <= min_idx & mspe <= threshold)
+    if (length(candidates) == 0L) min_idx else min(candidates)
+  }
 
   list(
     cv_table   = cv_table,

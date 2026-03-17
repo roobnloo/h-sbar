@@ -17,7 +17,7 @@ source("hsbar-bea.R")
 # -----------------------------------------------------------------------
 # 1. Generate data
 # -----------------------------------------------------------------------
-dat <- generate_scenario7(seed = 6)
+dat <- generate_scenario10(seed = 5)
 cat(
   "True break points: t =", dat$break_points, "\n",
   " phi per regime  :", sapply(dat$phi_list, function(x) x[1L]), "\n",
@@ -30,7 +30,8 @@ cat(
 #    val_spacing defaults to max(p+1, round(n/10)) = 30 with n=300, p=1,
 #    giving ~9 equally spaced validation points.
 # -----------------------------------------------------------------------
-lambda_path <- 10^seq(-3, -1, length.out = 100)
+# lambda_path <- 10^seq(-3, -1.5, length.out = 100)
+lambda_path <- seq(0.01, 0.15, by = 0.01)
 c_scale_fixed <- 1
 
 cat("Running interpolation CV over lambda path ...\n")
@@ -48,8 +49,11 @@ cv <- cv_hsbar(
   lambda = lambda_path,
   c_scale = c_scale_fixed,
   max_iter = 5000,
-  val_spacing = 50,
+  val_spacing = 10,
+  eps_tol = 1e-10,
+  lambda_rule = "min",
   # scale_y = FALSE,
+  thr = 1e-8,
   verbose = TRUE
 )
 
@@ -84,7 +88,8 @@ fit <- hsbar(
   p = dat$p,
   lambda = best_ln,
   max_iter = 5000,
-  c_scale = c_scale_fixed
+  c_scale = c_scale_fixed,
+  thr = 1e-8
 )
 cat("Solver status:", fit$status, "\n\n")
 
@@ -125,6 +130,9 @@ plot(dat$Y,
   type = "l", main = "H-SBAR fit (Scenario 1, CV-selected lambda)",
   xlab = "t", ylab = "Y"
 )
+# for (t in cv$val_points) {
+#   abline(v = t, col = "green3", lty = 3, lwd = 0.5)
+# }
 for (t in dat$break_points) {
   abline(v = t, col = "red", lty = 2, lwd = 2)
 }
@@ -137,5 +145,5 @@ for (t in bea$cp) {
 legend("topleft",
   legend = c("True break", "Stage 1 (LASSO)", "Stage 2 (BEA)"),
   col = c("red", "darkgray", "blue"),
-  lty = c(2, 3, 2), bty = "n"
+  lty = c(2, 3, 2, 3), lwd = c(2, 1, 2, 0.5), bty = "n"
 )

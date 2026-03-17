@@ -24,12 +24,12 @@
 #' @param max_iter  Maximum number of outer iterations (default 1000)
 #' @param tol       Convergence tolerance on proximal gradient mapping
 #'                  (default 1e-6)
-#' @param thr       Zero-threshold for changepoint detection (default 1e-3)
+#' @param thr       Zero-threshold for changepoint detection (default 1e-6)
 #' @param restart   Apply gradient-based momentum restart? (default TRUE)
 #' @param scale_y   Standardise y by sd(y[keep_rows]) before fitting to
 #'                  improve conditioning when sigma is large? (default TRUE)
 #' @param eps_tol   Stop if the relative objective change falls below this
-#'                  between iterations: |dQ| < eps_tol*(1+|Q|) (default 1e-6).
+#'                  between iterations: |dQ| < eps_tol*(1+|Q|) (default 1e-10).
 #' @param verbose   Print iteration log?
 #'
 #' @return List: theta, psi, phi_vec, sigma2, beta,
@@ -45,10 +45,10 @@ hsbar <- function(y,
                   beta = 0.5,
                   max_iter = 1000,
                   tol = 1e-6,
-                  thr = 1e-3,
+                  thr = 1e-6,
                   restart = TRUE,
                   scale_y = TRUE,
-                  eps_tol = 1e-6,
+                  eps_tol = 1e-10,
                   verbose = FALSE,
                   init_theta = NULL,
                   init_psi = NULL) {
@@ -235,12 +235,14 @@ hsbar <- function(y,
     # momentum with the gradient; G_alpha(theta) is zero at the optimum and
     # converges monotonically rather than oscillating with the momentum.
     # gp_new already holds compute_gp(theta, psi) since theta == th_new.
-    gp_t    <- gp_new
-    grad_t  <- compute_grad(gp_t$g, gp_t$phi)
-    prx_t   <- prox_g(theta - alpha * grad_t$grad_th,
-                      psi   - alpha * grad_t$grad_ps, alpha)
+    gp_t <- gp_new
+    grad_t <- compute_grad(gp_t$g, gp_t$phi)
+    prx_t <- prox_g(
+      theta - alpha * grad_t$grad_th,
+      psi - alpha * grad_t$grad_ps, alpha
+    )
     pg_norm <- sqrt(sum((prx_t$th - theta)^2) +
-                      sum((prx_t$ps - psi)^2)) / alpha
+      sum((prx_t$ps - psi)^2)) / alpha
 
     f_cur <- compute_f(gp_t$g, gp_t$phi)
     g_pen <- compute_g_pen(theta, psi)

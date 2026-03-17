@@ -69,6 +69,75 @@ where $\epsilon_t \sim N(0, 1)$.
 * **Coefficients/Variance:** Use values from Scenario 4 to see if correlated noise masks the structural breaks.
 * **Noise scaling:** All $\sigma$ values are multiplied by `sigma_scale` (configurable via `--sigma_scale`, default 1).
 
+### Scenario 6: Dyadic Piecewise-Stationary AR(2) (Chan et al. 2014)
+
+**Goal:** Replicate the dyadic simulation from Chan et al. (2014) used to benchmark the two-step SBAR procedure, with near-unit-root dynamics.
+
+* **Parameters:** $T=1024, p=2, m_0=2$.
+* **Break Points:** $t_1=513, t_2=769$ (dyadic).
+* **Coefficients ($\phi$):**
+  * Regime 1: $(\phi_1=0.9,\; \phi_2=0.0)$ — AR(1) embedded in AR(2)
+  * Regime 2: $(\phi_1=1.69,\; \phi_2=-0.81)$ — near-unit-root AR(2)
+  * Regime 3: $(\phi_1=1.32,\; \phi_2=-0.81)$ — near-unit-root AR(2)
+* **Variance ($\sigma$):** Constant across regimes; configurable via `--sigma` (default 1).
+
+### Scenario 7: Dyadic Piecewise-Stationary AR(2) with Variance Shifts
+
+**Goal:** Extend Scenario 6 with heteroskedasticity to test joint break detection in coefficients and variance under near-unit-root dynamics.
+
+* **Parameters:** $T=1002, p=2, m_0=2$.
+* **Break Points:** $t_1=334, t_2=668$ (equal thirds).
+* **Coefficients ($\phi$):** Same as Scenario 6 across all three regimes.
+* **Variance ($\sigma$):**
+  * Regime 1: $\sigma = 0.1 \times \texttt{sigma\_scale}$
+  * Regime 2: $\sigma = 0.4 \times \texttt{sigma\_scale}$
+  * Regime 3: $\sigma = 0.15 \times \texttt{sigma\_scale}$
+* **Noise scaling:** All $\sigma$ values are multiplied by `sigma_scale` (configurable via `--sigscale`, default 1).
+
+### Scenario 8: CV-Friendly Dyadic AR(2), Coefficient Breaks Only
+
+**Goal:** A well-conditioned variant of Scenario 6 for cross-validation benchmarking, with moderate stationary coefficients that keep the optimal lambda in a predictable range.
+
+* **Parameters:** $T=1024, p=2, m_0=2$.
+* **Break Points:** $t_1=513, t_2=769$ (dyadic, as in Chan et al. 2014).
+* **Coefficients ($\phi$):**
+  * Regime 1: $(\phi_1=0.5,\; \phi_2=0.0)$ — moderate positive lag-1, no lag-2
+  * Regime 2: $(\phi_1=-0.4,\; \phi_2=0.3)$ — sign flip on lag-1, mild lag-2
+  * Regime 3: $(\phi_1=0.6,\; \phi_2=-0.2)$ — moderate positive lag-1, mild negative lag-2
+* **Variance ($\sigma$):** Constant across regimes; configurable via `--sigma` (default 1).
+* **Coefficient jumps:** $|\Delta\phi_1| \in \{0.9, 1.0\}$, $|\Delta\phi_2| \in \{0.3, 0.5\}$.
+
+### Scenario 9: CV-Friendly Equal-Thirds AR(2), Coefficient and Variance Breaks
+
+**Goal:** A well-conditioned variant of Scenario 7 combining the moderate AR(2) coefficients of Scenario 8 with controlled heteroskedasticity (2:1 variance ratio instead of 4:1).
+
+* **Parameters:** $T=1002, p=2, m_0=2$.
+* **Break Points:** $t_1=334, t_2=668$ (equal thirds).
+* **Coefficients ($\phi$):** Same as Scenario 8 across all three regimes.
+* **Variance ($\sigma$):**
+  * Regime 1: $\sigma = 0.5 \times \texttt{sigma\_scale}$
+  * Regime 2: $\sigma = 1.0 \times \texttt{sigma\_scale}$
+  * Regime 3: $\sigma = 0.5 \times \texttt{sigma\_scale}$
+* **Noise scaling:** All $\sigma$ values are multiplied by `sigma_scale` (configurable via `--sigscale`, default 1).
+
+### Scenario 10: Variance-Dominated Breaks, Moderate Coefficient Signal
+
+**Goal:** A difficulty level between Scenarios 9 and the original Scenario 10. Coefficient jumps are moderate (~0.2–0.3 per component) — weaker than Scenario 9 but strong enough for H-SBAR to leverage. The variance ratio remains large (5:1), so variance is still the dominant break signal; a method insensitive to variance shifts will still underperform relative to H-SBAR.
+
+* **Parameters:** $T=1002, p=2, m_0=2$.
+* **Break Points:** $t_1=334, t_2=668$ (equal thirds, same as Scenario 9).
+* **Coefficients ($\phi$):**
+  * Regime 1: $(\phi_1=0.50,\; \phi_2=0.10)$
+  * Regime 2: $(\phi_1=0.20,\; \phi_2=0.30)$
+  * Regime 3: $(\phi_1=0.50,\; \phi_2=0.00)$
+* **Coefficient jumps:** $|\Delta\phi_1|=0.30$ at both breaks; $|\Delta\phi_2| \in \{0.20, 0.30\}$.
+* **Variance ($\sigma$):**
+  * Regime 1: $\sigma = 0.2 \times \texttt{sigma\_scale}$
+  * Regime 2: $\sigma = 1.0 \times \texttt{sigma\_scale}$ — variance spike
+  * Regime 3: $\sigma = 0.2 \times \texttt{sigma\_scale}$
+* **Variance ratio:** 5:1 between the middle regime and the flanking regimes.
+* **Noise scaling:** All $\sigma$ values are multiplied by `sigma_scale` (configurable via `--sigscale`, default 1).
+
 ---
 
 ### Implementation Summary for the Agent

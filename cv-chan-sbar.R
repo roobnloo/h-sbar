@@ -28,11 +28,18 @@ if (!exists("chan_sbar_admm", mode = "function")) {
 #' @param p           AR order (no intercept).
 #' @param lambda      Numeric vector of lambda candidates.
 #'                    Default: 10-point log grid on [1e-3, 1].
-#' @param val_spacing Spacing s between validation points. Must be > p.
-#'                    Default: \code{max(p + 1, round(n / 10))}.
-#' @param verbose     Print per-lambda progress? Default TRUE.
-#' @param ...         Additional arguments forwarded to \code{chan_sbar()}
-#'                    (e.g. \code{thr}, \code{max_iter}).
+#' @param val_spacing         Spacing s between validation points. Must be > p.
+#'                            Default: 10.
+#' @param drop_poisoned_rows  If \code{TRUE}, also exclude the p rows following
+#'                            each validation point (rows \code{t+1..t+p}), which
+#'                            contain \code{Y_t} as a lagged predictor and would
+#'                            otherwise leak the held-out value into training.
+#'                            If \code{FALSE} (default), only the validation row
+#'                            itself is excluded, matching Abolfazl's implementation;
+#'                            this admits a small downward bias in the CV error.
+#' @param verbose             Print per-lambda progress? Default TRUE.
+#' @param ...                 Additional arguments forwarded to \code{chan_sbar()}
+#'                            (e.g. \code{thr}, \code{max_iter}).
 #'
 #' @return A list with:
 #' \describe{
@@ -44,7 +51,8 @@ if (!exists("chan_sbar_admm", mode = "function")) {
 cv_chan_sbar <- function(y,
                          p = 1L,
                          lambda = NULL,
-                         val_spacing = NULL,
+                         val_spacing = 10L,
+                         drop_poisoned_rows = FALSE,
                          verbose = TRUE,
                          ...) {
   n <- length(y)
@@ -55,15 +63,12 @@ cv_chan_sbar <- function(y,
   n_lambda <- length(lambda_vec)
 
   # ---- validation set ----------------------------------------------------
-  if (is.null(val_spacing)) {
-    val_spacing <- max(p + 1L, round(n / 10))
-  }
   if (val_spacing <= p) {
     stop(sprintf("val_spacing (%d) must be > p (%d).", val_spacing, p))
   }
 
   # Valid range: t >= p+1 (so all p lags exist) and t+p <= n
-  first_valid <- p + 1L
+  first_valid <- p + val_spacing
   last_valid <- n - p
   val_points <- seq(first_valid, last_valid, by = val_spacing)
   k <- length(val_points)
@@ -73,8 +78,15 @@ cv_chan_sbar <- function(y,
   }
 
   # ---- excluded rows for each validation point ---------------------------
+  # drop_poisoned_rows = TRUE : remove validation row + p downstream rows
+  #   (rows t+1..t+p contain Y_t as a lag, leaking the held-out value into training)
+  # drop_poisoned_rows = FALSE: remove only the validation row itself
+  #   (matches Safikhani & Shojaie 2022 / Abolfazl's implementation; admits a small
+  #    downward bias in CV error for lambda selection)
   excl_rows <- sort(unique(as.integer(
-    unlist(lapply(val_points, function(t) t:(t + p)))
+    unlist(lapply(val_points, function(t) {
+      if (drop_poisoned_rows) t:(t + p) else t
+    }))
   )))
   keep_rows <- setdiff(seq_len(n), excl_rows)
 

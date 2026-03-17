@@ -19,7 +19,7 @@ ic_type <- "sigma_scaled"
 # -----------------------------------------------------------------------
 # 1. Generate data
 # -----------------------------------------------------------------------
-dat <- generate_scenario7(seed = 40, sigma_scale = 2)
+dat <- generate_scenario10(seed = 1)
 cat(
   "True break points: t =", dat$break_points, "\n",
   " phi per regime  :", sapply(dat$phi_list, function(x) x[1L]), "\n",
@@ -32,7 +32,8 @@ cat(
 #    val_spacing defaults to max(p+1, round(n/10)) = 30 with n=300, p=1,
 #    giving ~9 equally spaced validation points.
 # -----------------------------------------------------------------------
-lambda_path <- 10^seq(-3, -1, length.out = 100)
+# lambda_path <- 10^seq(-3, -1, length.out = 100)
+lambda_path <- seq(0.01, 0.1, by = 0.01)
 
 cat("Running interpolation CV over lambda path ...\n")
 cat(sprintf(
@@ -43,9 +44,12 @@ cat(sprintf(
 ))
 
 cv <- cv_chan_sbar(
-  y       = dat$Y,
-  p       = dat$p,
-  lambda  = lambda_path,
+  y = dat$Y,
+  p = dat$p,
+  lambda = lambda_path,
+  max_iter = 5000,
+  val_spacing = 10,
+  eps_tol = 1e-10,
   verbose = TRUE
 )
 

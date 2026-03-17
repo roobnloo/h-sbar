@@ -42,10 +42,10 @@
 #' @param max_iter Maximum number of outer iterations (default 1000).
 #' @param tol      Convergence tolerance on proximal gradient mapping
 #'                 (default 1e-6).
-#' @param thr      Zero-threshold for changepoint detection (default 1e-3).
+#' @param thr      Zero-threshold for changepoint detection (default 1e-6).
 #' @param restart  Apply gradient-based momentum restart? (default TRUE).
-#' @param eps_tol  Stop if the objective changes by less than this between
-#'                 iterations (default 1e-8).
+#' @param eps_tol  Stop if the relative objective change falls below this
+#'                 between iterations: |dQ| < eps_tol*(1+|Q|) (default 1e-10).
 #' @param verbose  Print iteration log? (default FALSE).
 #' @param init_theta  Warm-start matrix for theta (n x p).
 #'
@@ -61,9 +61,9 @@ chan_sbar_admm <- function(y,
                            beta = 0.5,
                            max_iter = 1000,
                            tol = 1e-6,
-                           thr = 1e-3,
+                           thr = 1e-6,
                            restart = TRUE,
-                           eps_tol = 1e-8,
+                           eps_tol = 1e-10,
                            verbose = FALSE,
                            init_theta = NULL) {
   n <- length(y)
@@ -151,10 +151,10 @@ chan_sbar_admm <- function(y,
     theta <- matrix(0, n, p)
   }
 
-  m_th      <- theta
-  s         <- 1
-  n_iter    <- max_iter
-  obj_prev  <- Inf
+  m_th <- theta
+  s <- 1
+  n_iter <- max_iter
+  obj_prev <- Inf
   stop_crit <- "max_iter"
 
   # -----------------------------------------------------------------------
@@ -220,7 +220,7 @@ chan_sbar_admm <- function(y,
       n_iter <- iter
       break
     }
-    if (abs(obj_cur - obj_prev) < eps_tol) {
+    if (abs(obj_cur - obj_prev) < eps_tol * (1 + abs(obj_cur))) {
       stop_crit <- "obj_change"
       n_iter <- iter
       break
@@ -281,17 +281,16 @@ chan_sbar_admm <- function(y,
   obj_val <- compute_f(theta) + compute_g_pen(theta)
 
   list(
-    theta    = theta,
-    psi      = NULL,
-    phi_vec  = NULL,
-    sigma2   = sigma2,
-    beta     = beta_hat,
-    cp       = cp,
+    theta = theta,
+    psi = NULL,
+    phi_vec = NULL,
+    sigma2 = sigma2,
+    beta = beta_hat,
+    cp = cp,
     cp_theta = cp_theta,
-    cp_psi   = NULL,
-    obj_val   = obj_val,
-    n_iter    = n_iter,
+    cp_psi = NULL,
+    obj_val = obj_val,
+    n_iter = n_iter,
     stop_crit = stop_crit
   )
 }
-

@@ -5,7 +5,7 @@
 # Usage:
 #   Rscript run-sim.R --scenario=N [--sigma=X] [--sigscale=X] [--nrep=N] [--outdir=PATH]
 #
-#   --scenario=N      Required. Scenario 1-5 (see generate-data.R).
+#   --scenario=N      Required (see generate-data.R).
 #   --sigma=X         Innovation std dev (scenarios 1-3, default 1).
 #   --sigscale=X      Multiplier for sigma_vec (scenarios 4-5, default 1).
 #   --nrep=N          Number of replications (default 100).
@@ -33,14 +33,14 @@ parse_arg <- function(args, key, default = NULL) {
 }
 
 scenario_str <- parse_arg(args, "scenario")
-if (is.null(scenario_str)) stop("--scenario=N is required (1-5)")
+if (is.null(scenario_str)) stop("--scenario=N is required (1-10)")
 scenario_arg <- as.integer(scenario_str)
-if (!scenario_arg %in% 1:5) stop("--scenario must be 1-5")
+if (!scenario_arg %in% c(1:10)) stop("--scenario must be 1-10")
 
-sigma_arg       <- as.numeric(parse_arg(args, "sigma", "1"))
+sigma_arg <- as.numeric(parse_arg(args, "sigma", "1"))
 sigma_scale_arg <- as.numeric(parse_arg(args, "sigscale", "1"))
-nrep_arg        <- as.integer(parse_arg(args, "nrep", "100"))
-outdir_arg      <- parse_arg(args, "outdir", "./sim")
+nrep_arg <- as.integer(parse_arg(args, "nrep", "100"))
+outdir_arg <- parse_arg(args, "outdir", "./sim")
 
 # ============================================================
 # Dependencies
@@ -62,25 +62,30 @@ GENERATE_FN <- switch(as.character(scenario_arg),
   "2" = function(seed) generate_scenario2(seed = seed, sigma = sigma_arg),
   "3" = function(seed) generate_scenario3(seed = seed, sigma = sigma_arg),
   "4" = function(seed) generate_scenario4(seed = seed, sigma_scale = sigma_scale_arg),
-  "5" = function(seed) generate_scenario5(seed = seed, sigma_scale = sigma_scale_arg)
+  "5" = function(seed) generate_scenario5(seed = seed, sigma_scale = sigma_scale_arg),
+  "6" = function(seed) generate_scenario6(seed = seed, sigma = sigma_arg),
+  "7" = function(seed) generate_scenario7(seed = seed, sigma_scale = sigma_scale_arg),
+  "8" = function(seed) generate_scenario8(seed = seed, sigma = sigma_arg),
+  "9" = function(seed) generate_scenario9(seed = seed, sigma_scale = sigma_scale_arg),
+  "10" = function(seed) generate_scenario10(seed = seed, sigma_scale = sigma_scale_arg)
 )
 
-meta           <- GENERATE_FN(seed = 0L)
-N              <- meta$n
-P              <- meta$p
-TRUE_BREAKS    <- meta$break_points
-M0             <- length(TRUE_BREAKS)
-TRUE_PHI       <- meta$phi_list
+meta <- GENERATE_FN(seed = 0L)
+N <- meta$n
+P <- meta$p
+TRUE_BREAKS <- meta$break_points
+M0 <- length(TRUE_BREAKS)
+TRUE_PHI <- meta$phi_list
 TRUE_SIGMA_VEC <- meta$sigma_vec
 
 # ============================================================
 # Tuning parameters (fixed across reps)
 # ============================================================
 
-N_REP        <- nrep_arg
-LAMBDA_SBAR  <- 10^seq(-4, 0, length.out = 100)
-LAMBDA_CHAN   <- 10^seq(-4, 0, length.out = 100)
-C_SCALE      <- 1
+N_REP <- nrep_arg
+LAMBDA_SBAR <- seq(0.01, 0.15, by = 0.01)
+LAMBDA_CHAN <- seq(0.01, 0.15, by = 0.01)
+C_SCALE <- 1
 
 # ============================================================
 # Helpers
@@ -138,7 +143,8 @@ compute_metrics <- function(cp_est, beta_est, sigma2_est,
     mse         = mean((y - y_hat)^2),
     beta_err    = mean((beta_est - true_beta)^2),
     sigma2_err  = mean((sigma2_est - true_sigma2)^2),
-    rel_cp      = if (ncp > 0L) sort(as.integer(cp_est)) / n else numeric(0)
+    rel_cp      = if (ncp > 0L) sort(as.integer(cp_est)) / n else numeric(0),
+    cp          = if (ncp > 0L) sort(as.integer(cp_est)) else integer(0)
   )
 }
 
@@ -150,7 +156,7 @@ one_rep <- function(seed, lambda_sbar, lambda_chan, c_scale) {
   dat <- GENERATE_FN(seed)
   n <- dat$n
   p <- dat$p
-  true_beta   <- make_true_beta_mat(n, TRUE_BREAKS, dat$phi_list)
+  true_beta <- make_true_beta_mat(n, TRUE_BREAKS, dat$phi_list)
   true_sigma2 <- dat$true_sigma2
 
   # -- H-SBAR ------------------------------------------------------------
@@ -160,14 +166,15 @@ one_rep <- function(seed, lambda_sbar, lambda_chan, c_scale) {
   tryCatch(
     {
       cv_s <- cv_hsbar(dat$Y, p,
-        lambda  = lambda_sbar,
+        lambda = lambda_sbar,
         c_scale = c_scale,
-        verbose = FALSE
+        max_iter = 5000
       )
       sbar_best_lambda <- cv_s$best$lambda
       fit_s <- hsbar(dat$Y, p,
-        lambda  = sbar_best_lambda,
-        c_scale = c_scale
+        lambda = sbar_best_lambda,
+        c_scale = c_scale,
+        max_iter = 5000
       )
       sbar_s1 <- compute_metrics(
         fit_s$cp, fit_s$beta, fit_s$sigma2,
@@ -191,18 +198,21 @@ one_rep <- function(seed, lambda_sbar, lambda_chan, c_scale) {
   tryCatch(
     {
       cv_c <- cv_chan_sbar(dat$Y, p,
-        lambda  = lambda_chan,
-        verbose = FALSE
+        lambda = lambda_chan,
+        max_iter = 5000
       )
       chan_best_lambda <- cv_c$best$lambda
-      fit_c <- chan_sbar_admm(dat$Y, p, lambda = chan_best_lambda)
+      fit_c <- chan_sbar_admm(dat$Y, p,
+        lambda = chan_best_lambda,
+        max_iter = 5000
+      )
       chan_s1 <- compute_metrics(
         fit_c$cp, fit_c$beta, fit_c$sigma2,
         dat$Y, true_beta, true_sigma2, n, p
       )
-      bea_rss   <- chan_sbar_bea(fit_c, y = dat$Y, p = p, ic_type = "rss")
+      bea_rss <- chan_sbar_bea(fit_c, y = dat$Y, p = p, ic_type = "rss")
       bea_sigma <- chan_sbar_bea(fit_c, y = dat$Y, p = p, ic_type = "sigma_scaled")
-      bea_prof  <- chan_sbar_bea(fit_c, y = dat$Y, p = p, ic_type = "profile_lik")
+      bea_prof <- chan_sbar_bea(fit_c, y = dat$Y, p = p, ic_type = "profile_lik")
       chan_s2_rss <- compute_metrics(
         bea_rss$cp, bea_rss$beta, bea_rss$sigma2,
         dat$Y, true_beta, true_sigma2, n, p
@@ -222,14 +232,14 @@ one_rep <- function(seed, lambda_sbar, lambda_chan, c_scale) {
   )
 
   list(
-    sbar_s1          = sbar_s1,
-    sbar_s2          = sbar_s2,
-    chan_s1          = chan_s1,
-    chan_s2_rss      = chan_s2_rss,
-    chan_s2_sigma     = chan_s2_sigma,
-    chan_s2_prof      = chan_s2_prof,
+    sbar_s1 = sbar_s1,
+    sbar_s2 = sbar_s2,
+    chan_s1 = chan_s1,
+    chan_s2_rss = chan_s2_rss,
+    chan_s2_sigma = chan_s2_sigma,
+    chan_s2_prof = chan_s2_prof,
     sbar_best_lambda = sbar_best_lambda,
-    chan_best_lambda  = chan_best_lambda
+    chan_best_lambda = chan_best_lambda
   )
 }
 
@@ -237,7 +247,7 @@ one_rep <- function(seed, lambda_sbar, lambda_chan, c_scale) {
 # Main simulation loop
 # ============================================================
 
-run_label <- if (scenario_arg %in% 1:3) {
+run_label <- if (scenario_arg %in% c(1:3, 6L, 8L)) {
   sprintf("Scenario %d  sigma=%.4g", scenario_arg, sigma_arg)
 } else {
   sprintf("Scenario %d  sigma_scale=%.4g", scenario_arg, sigma_scale_arg)
@@ -255,7 +265,7 @@ cat(sprintf(
   "Chan SBAR: %d lambda values on [%.2g, %.2g]\n",
   length(LAMBDA_CHAN), min(LAMBDA_CHAN), max(LAMBDA_CHAN)
 ))
-rds_label <- if (scenario_arg %in% 1:3) {
+rds_label <- if (scenario_arg %in% c(1:3, 6L, 8L)) {
   sprintf("scenario%d-sigma%.4g", scenario_arg, sigma_arg)
 } else {
   sprintf("scenario%d-sigscale%.4g", scenario_arg, sigma_scale_arg)
@@ -271,6 +281,21 @@ results <- vector("list", N_REP)
 for (i in seq_len(N_REP)) {
   cat(sprintf("[%3d/%d]", i, N_REP))
   results[[i]] <- one_rep(i, LAMBDA_SBAR, LAMBDA_CHAN, C_SCALE)
+  local({
+    r <- results[[i]]
+    fmt_cp <- function(variant) {
+      v <- r[[variant]]
+      if (is.null(v) || length(v$cp) == 0L) "(none)" else paste(v$cp, collapse = ", ")
+    }
+    cat(sprintf(
+      "  true=[%s]  hsbar=[%s]  chan_rss=[%s]  chan_sig=[%s]  chan_pl=[%s]",
+      paste(TRUE_BREAKS, collapse = ", "),
+      fmt_cp("sbar_s2"),
+      fmt_cp("chan_s2_rss"),
+      fmt_cp("chan_s2_sigma"),
+      fmt_cp("chan_s2_prof")
+    ))
+  })
   cat("\n")
   saveRDS(results[seq_len(i)], rds_path)
 }
@@ -299,22 +324,22 @@ extract_rel_cp <- function(results, variant, m0) {
 }
 
 summarise_variant <- function(results, variant, m0) {
-  ncp        <- extract_scalar(results, variant, "ncp")
-  correct    <- extract_scalar(results, variant, "correct_ncp")
-  hd         <- extract_scalar(results, variant, "hd")
-  mse        <- extract_scalar(results, variant, "mse")
-  beta_err   <- extract_scalar(results, variant, "beta_err")
+  ncp <- extract_scalar(results, variant, "ncp")
+  correct <- extract_scalar(results, variant, "correct_ncp")
+  hd <- extract_scalar(results, variant, "hd")
+  mse <- extract_scalar(results, variant, "mse")
+  beta_err <- extract_scalar(results, variant, "beta_err")
   sigma2_err <- extract_scalar(results, variant, "sigma2_err")
-  rel_cp     <- extract_rel_cp(results, variant, m0)
+  rel_cp <- extract_rel_cp(results, variant, m0)
 
-  n_ok      <- sum(!is.na(ncp))
+  n_ok <- sum(!is.na(ncp))
   n_correct <- sum(correct, na.rm = TRUE)
 
   # Conditional break-location stats (only reps with correct m)
-  rel_ok   <- rel_cp[!is.na(rel_cp[, 1L]), , drop = FALSE]
-  n_rel    <- nrow(rel_ok)
+  rel_ok <- rel_cp[!is.na(rel_cp[, 1L]), , drop = FALSE]
+  n_rel <- nrow(rel_ok)
   mean_rel <- if (n_rel > 0L) colMeans(rel_ok) else rep(NA_real_, m0)
-  se_rel   <- if (n_rel > 1L) {
+  se_rel <- if (n_rel > 1L) {
     apply(rel_ok, 2L, sd) / sqrt(n_rel)
   } else {
     rep(NA_real_, m0)
@@ -337,10 +362,14 @@ summarise_variant <- function(results, variant, m0) {
 # Print results
 # ============================================================
 
-VARIANTS <- c("sbar_s1", "sbar_s2", "chan_s1",
-              "chan_s2_rss", "chan_s2_sigma", "chan_s2_prof")
-LABELS   <- c("H-SBAR S1", "H-SBAR S2", "Chan S1",
-              "Chan S2 RSS", "Chan S2 sigma", "Chan S2 PL")
+VARIANTS <- c(
+  "sbar_s1", "sbar_s2", "chan_s1",
+  "chan_s2_rss", "chan_s2_sigma", "chan_s2_prof"
+)
+LABELS <- c(
+  "H-SBAR S1", "H-SBAR S2", "Chan S1",
+  "Chan S2 RSS", "Chan S2 sigma", "Chan S2 PL"
+)
 
 sums <- lapply(VARIANTS, function(v) summarise_variant(results, v, M0))
 names(sums) <- VARIANTS
@@ -371,9 +400,9 @@ for (k in seq_along(VARIANTS)) {
     s$avg_ncp,
     s$pct_correct,
     if (M0 >= 1L) s$mean_rel[1L] else NA,
-    if (M0 >= 1L) s$se_rel[1L]   else NA,
+    if (M0 >= 1L) s$se_rel[1L] else NA,
     if (M0 >= 2L) s$mean_rel[2L] else NA,
-    if (M0 >= 2L) s$se_rel[2L]   else NA
+    if (M0 >= 2L) s$se_rel[2L] else NA
   ))
 }
 
@@ -403,7 +432,7 @@ for (k in seq_along(VARIANTS)) {
 
 # --- Lambda selection summary ------------------------------------------
 sbar_lambdas <- sapply(results, `[[`, "sbar_best_lambda")
-chan_lambdas  <- sapply(results, `[[`, "chan_best_lambda")
+chan_lambdas <- sapply(results, `[[`, "chan_best_lambda")
 
 cat(sprintf(
   "\nH-SBAR best lambda: median=%.4g  range=[%.4g, %.4g]\n",
