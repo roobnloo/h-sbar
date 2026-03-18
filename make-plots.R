@@ -140,7 +140,7 @@ make_boxplot <- function(df, metric, y_label, setting) {
     geom_boxplot(outlier.size = 0.8, linewidth = 0.4, width = 0.55) +
     scale_fill_manual(values = METHOD_COLORS, guide = "none") +
     labs(
-      title = setting,
+      # title = setting,
       x     = NULL,
       y     = y_label
     ) +
@@ -160,19 +160,19 @@ make_combined_plot <- function(df, setting) {
   })
 
   # Use patchwork if available, otherwise cowplot, otherwise base layout
-  if (requireNamespace("patchwork", quietly = TRUE)) {
+  if (requireNamespace("gridExtra", quietly = TRUE)) {
+    library(gridExtra)
+    gridExtra::arrangeGrob(
+      grobs = plot_list, nrow = 1L,
+      top = grid::textGrob(setting, gp = grid::gpar(fontsize = 13, fontface = "bold"))
+    )
+  } else if (requireNamespace("patchwork", quietly = TRUE)) {
     library(patchwork)
     wrap_plots(plot_list, nrow = 1L) +
       plot_annotation(
         title    = setting,
         subtitle = "Boxplots over 100 replications"
       )
-  } else if (requireNamespace("gridExtra", quietly = TRUE)) {
-    library(gridExtra)
-    gridExtra::arrangeGrob(
-      grobs = plot_list, nrow = 1L,
-      top = grid::textGrob(setting, gp = grid::gpar(fontsize = 13, fontface = "bold"))
-    )
   } else {
     stop("Install 'patchwork' or 'gridExtra' to combine panels.")
   }
@@ -222,52 +222,52 @@ cat("\nDone.\n")
 # grouped by sigma / sigscale on the x-axis
 # ============================================================
 
-SCENARIO_METRICS <- c("hd", "beta_err")
-SCENARIO_METRIC_LABELS <- c(
-  hd       = "log(1 + Hausdorff distance)",
-  beta_err = "AR coef. error"
-)
+# SCENARIO_METRICS <- c("hd", "beta_err")
+# SCENARIO_METRIC_LABELS <- c(
+#   hd       = "log(1 + Hausdorff distance)",
+#   beta_err = "AR coef. error"
+# )
 
-sigma_level_order <- function(labels) {
-  u <- unique(labels)
-  nums <- suppressWarnings(as.numeric(gsub(".*=", "", u)))
-  u[order(nums, na.last = TRUE)]
-}
+# sigma_level_order <- function(labels) {
+#   u <- unique(labels)
+#   nums <- suppressWarnings(as.numeric(gsub(".*=", "", u)))
+#   u[order(nums, na.last = TRUE)]
+# }
 
-make_scenario_plot <- function(df_scen, scenario_name) {
-  df_scen$sigma_label <- factor(
-    df_scen$sigma_label,
-    levels = sigma_level_order(unique(df_scen$sigma_label))
-  )
+# make_scenario_plot <- function(df_scen, scenario_name) {
+#   df_scen$sigma_label <- factor(
+#     df_scen$sigma_label,
+#     levels = sigma_level_order(unique(df_scen$sigma_label))
+#   )
 
-  long <- tidyr::pivot_longer(df_scen,
-    cols = all_of(SCENARIO_METRICS),
-    names_to = "metric", values_to = "value"
-  )
-  long <- long[!is.na(long$value), ]
-  long$value[long$metric == "hd"] <- log1p(long$value[long$metric == "hd"])
-  long$metric <- factor(long$metric,
-    levels = SCENARIO_METRICS,
-    labels = unname(SCENARIO_METRIC_LABELS[SCENARIO_METRICS])
-  )
+#   long <- tidyr::pivot_longer(df_scen,
+#     cols = all_of(SCENARIO_METRICS),
+#     names_to = "metric", values_to = "value"
+#   )
+#   long <- long[!is.na(long$value), ]
+#   long$value[long$metric == "hd"] <- log1p(long$value[long$metric == "hd"])
+#   long$metric <- factor(long$metric,
+#     levels = SCENARIO_METRICS,
+#     labels = unname(SCENARIO_METRIC_LABELS[SCENARIO_METRICS])
+#   )
 
-  ggplot(long, aes(x = sigma_label, y = value, fill = method)) +
-    geom_boxplot(
-      outlier.size = 0.5, linewidth = 0.35, width = 0.7,
-      position = position_dodge(0.85)
-    ) +
-    scale_fill_manual(values = METHOD_COLORS, name = NULL) +
-    facet_wrap(~metric, ncol = 1L, scales = "free_y") +
-    labs(title = scenario_name, x = NULL, y = NULL) +
-    theme_bw(base_size = 11) +
-    theme(
-      plot.title       = element_text(size = 10, face = "bold"),
-      legend.position  = "right",
-      axis.text.x      = element_text(angle = 20, hjust = 1, size = 8),
-      panel.grid.minor = element_blank(),
-      strip.text       = element_text(size = 9)
-    )
-}
+#   ggplot(long, aes(x = sigma_label, y = value, fill = method)) +
+#     geom_boxplot(
+#       outlier.size = 0.5, linewidth = 0.35, width = 0.7,
+#       position = position_dodge(0.85)
+#     ) +
+#     scale_fill_manual(values = METHOD_COLORS, name = NULL) +
+#     facet_wrap(~metric, ncol = 1L, scales = "free_y") +
+#     labs(title = scenario_name, x = NULL, y = NULL) +
+#     theme_bw(base_size = 11) +
+#     theme(
+#       plot.title       = element_text(size = 10, face = "bold"),
+#       legend.position  = "right",
+#       axis.text.x      = element_text(angle = 20, hjust = 1, size = 8),
+#       panel.grid.minor = element_blank(),
+#       strip.text       = element_text(size = 9)
+#     )
+# }
 
 # scenarios <- unique(all_df$scenario)
 

@@ -1,6 +1,6 @@
 Based on the simulation frameworks utilized by **Chan et al. (2014)**, here is the set of experimental configurations for testing your structural break model.
 
-These settings are tailored to evaluate your objective of capturing simultaneous shifts in coefficients ($\phi$) and innovation variance ($\sigma$).
+These settings are tailored to evaluate your objective of capturing simultaneous shifts in coefficients ($\beta$) and innovation variance ($\sigma$).
 
 # Simulation Settings for $AR(p)$ Joint Break Detection
 
@@ -9,7 +9,7 @@ These settings are tailored to evaluate your objective of capturing simultaneous
 All scenarios assume a piecewise stationary process:
 
 
-$$Y_t = \sum_{j=1}^{m_0+1} \left( \sum_{k=1}^p \phi_{j,k} Y_{t-k} + \sigma_j \epsilon_t \right) I(t_{j-1} \le t < t_j)$$
+$$Y_t = \sum_{j=1}^{m_0+1} \left( \sum_{k=1}^p \beta_{j,k} Y_{t-k} + \sigma_j \epsilon_t \right) I(t_{j-1} \le t < t_j)$$
 
 
 where $\epsilon_t \sim N(0, 1)$.
@@ -22,12 +22,12 @@ where $\epsilon_t \sim N(0, 1)$.
 
 * **Parameters:** $T=1024, p=2, m_0=2$.
 * **Break Points:** $t_1=513, t_2=769$ (dyadic, as in Chan et al. 2014).
-* **Coefficients ($\phi$):**
-  * Regime 1: $(\phi_1=0.5,\; \phi_2=0.0)$ — moderate positive lag-1, no lag-2
-  * Regime 2: $(\phi_1=-0.4,\; \phi_2=0.3)$ — sign flip on lag-1, mild lag-2
-  * Regime 3: $(\phi_1=0.6,\; \phi_2=-0.2)$ — moderate positive lag-1, mild negative lag-2
+* **Coefficients ($\beta$):**
+  * Regime 1: $(\beta_1=0.5,\; \beta_2=0.0)$ — moderate positive lag-1, no lag-2
+  * Regime 2: $(\beta_1=-0.4,\; \beta_2=0.3)$ — sign flip on lag-1, mild lag-2
+  * Regime 3: $(\beta_1=0.6,\; \beta_2=-0.2)$ — moderate positive lag-1, mild negative lag-2
 * **Variance ($\sigma$):** Constant across regimes; configurable via `--sigma` (default 1).
-* **Coefficient jumps:** $|\Delta\phi_1| \in \{0.9, 1.0\}$, $|\Delta\phi_2| \in \{0.3, 0.5\}$.
+* **Coefficient jumps:** $|\Delta\beta_1| \in \{0.9, 1.0\}$, $|\Delta\beta_2| \in \{0.3, 0.5\}$.
 
 ### Scenario 2: CV-Friendly Equal-Thirds AR(2), Coefficient and Variance Breaks
 
@@ -35,7 +35,7 @@ where $\epsilon_t \sim N(0, 1)$.
 
 * **Parameters:** $T=1002, p=2, m_0=2$.
 * **Break Points:** $t_1=334, t_2=668$ (equal thirds).
-* **Coefficients ($\phi$):** Same as Scenario 1 across all three regimes.
+* **Coefficients ($\beta$):** Same as Scenario 1 across all three regimes.
 * **Variance ($\sigma$):**
   * Regime 1: $\sigma = 0.5 \times \texttt{sigma\_scale}$
   * Regime 2: $\sigma = 1.0 \times \texttt{sigma\_scale}$
@@ -48,11 +48,11 @@ where $\epsilon_t \sim N(0, 1)$.
 
 * **Parameters:** $T=1002, p=2, m_0=2$.
 * **Break Points:** $t_1=334, t_2=668$ (equal thirds, same as Scenario 2).
-* **Coefficients ($\phi$):**
-  * Regime 1: $(\phi_1=0.50,\; \phi_2=0.10)$
-  * Regime 2: $(\phi_1=0.20,\; \phi_2=0.30)$
-  * Regime 3: $(\phi_1=0.50,\; \phi_2=0.00)$
-* **Coefficient jumps:** $|\Delta\phi_1|=0.30$ at both breaks; $|\Delta\phi_2| \in \{0.20, 0.30\}$.
+* **Coefficients ($\beta$):**
+  * Regime 1: $(\beta_1=0.50,\; \beta_2=0.10)$
+  * Regime 2: $(\beta_1=0.20,\; \beta_2=0.30)$
+  * Regime 3: $(\beta_1=0.50,\; \beta_2=0.00)$
+* **Coefficient jumps:** $|\Delta\beta_1|=0.30$ at both breaks; $|\Delta\beta_2| \in \{0.20, 0.30\}$.
 * **Variance ($\sigma$):**
   * Regime 1: $\sigma = 0.2 \times \texttt{sigma\_scale}$
   * Regime 2: $\sigma = 1.0 \times \texttt{sigma\_scale}$ — variance spike

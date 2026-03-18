@@ -10,7 +10,7 @@
 #' @param break_points Integer vector of break-point indices (1-based).
 #'   Each index is the FIRST observation of the new regime.
 #'   Length m0 for m0 breaks (m0 + 1 regimes).
-#' @param phi_list    List of AR coefficient vectors (no intercept), one per
+#' @param phi_list    List of AR coefficient vectors beta (no intercept), one per
 #'   regime; each has length p.
 #' @param sigma_vec   Numeric vector of innovation std devs, one per regime.
 #' @param noise_ar    AR(1) coefficient for correlated noise (0 = i.i.d. Gaussian)
@@ -80,11 +80,11 @@ generate_ar_piecewise <- function(n, break_points, phi_list, sigma_vec,
 #' (e.g. seq(0.05, 0.35, 0.05)).
 #'
 #' Regimes (all AR(2), all clearly stationary):
-#'   1. phi = ( 0.5,  0.0) -- moderate positive lag-1, no lag-2
-#'   2. phi = (-0.4,  0.3) -- sign flip on lag-1, mild lag-2
-#'   3. phi = ( 0.6, -0.2) -- moderate positive lag-1, mild negative lag-2
+#'   1. beta = ( 0.5,  0.0) -- moderate positive lag-1, no lag-2
+#'   2. beta = (-0.4,  0.3) -- sign flip on lag-1, mild lag-2
+#'   3. beta = ( 0.6, -0.2) -- moderate positive lag-1, mild negative lag-2
 #'
-#' Coefficient jumps: |Delta phi1| in {0.9, 1.0}, |Delta phi2| in {0.3, 0.5}.
+#' Coefficient jumps: |Delta beta1| in {0.9, 1.0}, |Delta beta2| in {0.3, 0.5}.
 #'
 #' @param seed  RNG seed
 #' @param sigma Innovation std dev (constant across regimes, default 1).
@@ -109,9 +109,9 @@ generate_scenario1 <- function(seed = 42, sigma = 1) {
 #' (e.g. seq(0.05, 0.35, 0.05)) covers the optimum.
 #'
 #' Regimes (same AR(2) as scenario 1, sigma shifts by factor 2):
-#'   1. phi = ( 0.5,  0.0),  sigma = 0.5 * sigma_scale
-#'   2. phi = (-0.4,  0.3),  sigma = 1.0 * sigma_scale
-#'   3. phi = ( 0.6, -0.2),  sigma = 0.5 * sigma_scale
+#'   1. beta = ( 0.5,  0.0),  sigma = 0.5 * sigma_scale
+#'   2. beta = (-0.4,  0.3),  sigma = 1.0 * sigma_scale
+#'   3. beta = ( 0.6, -0.2),  sigma = 0.5 * sigma_scale
 #'
 #' @param seed        RNG seed
 #' @param sigma_scale Multiplier applied to all sigma values (default 1).
@@ -138,12 +138,12 @@ generate_scenario2 <- function(seed = 42, sigma_scale = 1) {
 #' insensitive to variance shifts will still struggle relative to H-SBAR.
 #'
 #' Regimes (all AR(2), all clearly stationary):
-#'   1. phi = ( 0.50,  0.10),  sigma = 0.2 * sigma_scale
-#'   2. phi = ( 0.20,  0.30),  sigma = 1.0 * sigma_scale  -- variance spike
-#'   3. phi = ( 0.50,  0.00),  sigma = 0.2 * sigma_scale
+#'   1. beta = ( 0.50,  0.10),  sigma = 0.2 * sigma_scale
+#'   2. beta = ( 0.20,  0.30),  sigma = 1.0 * sigma_scale  -- variance spike
+#'   3. beta = ( 0.50,  0.00),  sigma = 0.2 * sigma_scale
 #'
-#' Coefficient jumps: |Delta phi1| = 0.30 at both breaks;
-#'                   |Delta phi2| in {0.20, 0.30}.
+#' Coefficient jumps: |Delta beta1| = 0.30 at both breaks;
+#'                   |Delta beta2| in {0.20, 0.30}.
 #' Variance ratio: 5:1 between regimes 2 and 1/3.
 #'
 #' @param seed        RNG seed
