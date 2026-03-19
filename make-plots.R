@@ -201,19 +201,19 @@ for (s in settings) {
 # Also save a single combined PDF with all settings stacked
 # ============================================================
 
-if (requireNamespace("patchwork", quietly = TRUE)) {
-  library(patchwork)
-  all_plots <- lapply(settings, function(s) {
-    make_combined_plot(all_df[all_df$setting == s, ], s)
-  })
-  combined <- Reduce(`/`, all_plots) # stack vertically with patchwork
-  out_all <- file.path(out_dir, "plots-all.pdf")
-  ggsave(out_all, combined,
-    width = 14, height = 3 * length(settings), device = "pdf",
-    limitsize = FALSE
-  )
-  cat(sprintf("Saved %s\n", out_all))
-}
+# if (requireNamespace("patchwork", quietly = TRUE)) {
+#   library(patchwork)
+#   all_plots <- lapply(settings, function(s) {
+#     make_combined_plot(all_df[all_df$setting == s, ], s)
+#   })
+#   combined <- Reduce(`/`, all_plots) # stack vertically with patchwork
+#   out_all <- file.path(out_dir, "plots-all.pdf")
+#   ggsave(out_all, combined,
+#     width = 14, height = 3 * length(settings), device = "pdf",
+#     limitsize = FALSE
+#   )
+#   cat(sprintf("Saved %s\n", out_all))
+#
 
 cat("\nDone.\n")
 
