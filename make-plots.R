@@ -66,7 +66,7 @@ flatten_results <- function(results, setting_label) {
     rep <- results[[i]]
     for (v in VARIANTS) {
       entry <- rep[[v]]
-      if (is.null(entry)) {
+      if (is.null(entry) || isTRUE(entry[["ncp"]] == 0L)) {
         row <- as.list(rep(NA_real_, length(SCALAR_METRICS)))
         names(row) <- SCALAR_METRICS
       } else {
