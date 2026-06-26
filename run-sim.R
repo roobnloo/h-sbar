@@ -35,10 +35,11 @@ parse_arg <- function(args, key, default = NULL) {
 scenario_str <- parse_arg(args, "scenario")
 if (is.null(scenario_str)) stop("--scenario=N is required (1-3)")
 scenario_arg <- as.integer(scenario_str)
-if (!scenario_arg %in% c(1:3)) stop("--scenario must be 1-3")
+if (!scenario_arg %in% c(1:4)) stop("--scenario must be 1-4")
 
 sigma_arg <- as.numeric(parse_arg(args, "sigma", "1"))
 sigma_scale_arg <- as.numeric(parse_arg(args, "sigscale", "1"))
+var_ratio_arg <- as.numeric(parse_arg(args, "varratio", "5"))
 nrep_arg <- as.integer(parse_arg(args, "nrep", "100"))
 outdir_arg <- parse_arg(args, "outdir", "./sim")
 c_scale_arg <- as.numeric(parse_arg(args, "c_scale", "1"))
@@ -63,7 +64,8 @@ source("chan-sbar-bea.R")
 GENERATE_FN <- switch(as.character(scenario_arg),
   "1" = function(seed) generate_scenario1(seed = seed, sigma = sigma_arg),
   "2" = function(seed) generate_scenario2(seed = seed, sigma_scale = sigma_scale_arg),
-  "3" = function(seed) generate_scenario3(seed = seed, sigma_scale = sigma_scale_arg)
+  "3" = function(seed) generate_scenario3(seed = seed, sigma_scale = sigma_scale_arg),
+  "4" = function(seed) generate_scenario4(seed = seed, var_ratio = var_ratio_arg)
 )
 
 meta <- GENERATE_FN(seed = 0L)
@@ -152,7 +154,7 @@ one_rep <- function(seed, lambda_sbar, lambda_chan, c_scale) {
   dat <- GENERATE_FN(seed)
   n <- dat$n
   p <- dat$p
-  true_beta <- make_true_beta_mat(n, TRUE_BREAKS, dat$phi_list)
+  true_beta <- make_true_beta_mat(n, TRUE_BREAKS, dat$beta_list)
   true_sigma2 <- dat$true_sigma2
 
   # -- H-SBAR ------------------------------------------------------------
@@ -245,11 +247,12 @@ one_rep <- function(seed, lambda_sbar, lambda_chan, c_scale) {
 # Main simulation loop
 # ============================================================
 
-run_label <- if (scenario_arg == 1L) {
-  sprintf("Scenario %d  sigma=%.4g", scenario_arg, sigma_arg)
-} else {
-  sprintf("Scenario %d  sigma_scale=%.4g", scenario_arg, sigma_scale_arg)
-}
+run_label <- switch(as.character(scenario_arg),
+  "1" = sprintf("Scenario 1  sigma=%.4g", sigma_arg),
+  "2" = sprintf("Scenario 2  sigma_scale=%.4g", sigma_scale_arg),
+  "3" = sprintf("Scenario 3  sigma_scale=%.4g", sigma_scale_arg),
+  "4" = sprintf("Scenario 4  var_ratio=%.4g", var_ratio_arg)
+)
 
 cat(sprintf(
   "%s  n=%d  p=%d  m0=%d  true breaks: %s\n",
@@ -263,11 +266,12 @@ cat(sprintf(
   "Chan SBAR: %d lambda values on [%.2g, %.2g]\n",
   length(LAMBDA_CHAN), min(LAMBDA_CHAN), max(LAMBDA_CHAN)
 ))
-rds_label <- if (scenario_arg == 1L) {
-  sprintf("scenario%d-sigma%.4g", scenario_arg, sigma_arg)
-} else {
-  sprintf("scenario%d-sigscale%.4g", scenario_arg, sigma_scale_arg)
-}
+rds_label <- switch(as.character(scenario_arg),
+  "1" = sprintf("scenario1-sigma%.4g", sigma_arg),
+  "2" = sprintf("scenario2-sigscale%.4g", sigma_scale_arg),
+  "3" = sprintf("scenario3-sigscale%.4g", sigma_scale_arg),
+  "4" = sprintf("scenario4-varratio%.4g", var_ratio_arg)
+)
 dir.create(outdir_arg, showWarnings = FALSE, recursive = TRUE)
 rds_path <- file.path(outdir_arg, sprintf("run-sim-%s-results.rds", rds_label))
 

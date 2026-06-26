@@ -138,3 +138,34 @@ generate_scenario3 <- function(seed = 42, sigma_scale = 1) {
     seed = seed
   )
 }
+
+
+#' Scenario 4: Variance-ratio sweep, weak coefficient signal.
+#'
+#' Same AR structure as Scenario 3 but var_ratio is an explicit parameter,
+#' enabling a sweep over difficulty levels.  var_ratio = sigma_high / sigma_low.
+#'
+#' Regimes (all AR(2), all clearly stationary):
+#'   1. beta = ( 0.50,  0.10),  sigma = 1 / var_ratio  (low noise)
+#'   2. beta = ( 0.20,  0.30),  sigma = 1.0             (high noise spike)
+#'   3. beta = ( 0.50,  0.00),  sigma = 1 / var_ratio   (low noise)
+#'
+#' Special cases:
+#'   var_ratio = 1  -> flat variance, pure weak-coefficient setting
+#'   var_ratio = 5  -> matches Scenario 3 with sigma_scale = 1
+#'
+#' Coefficient jumps: |Delta beta1| = 0.30 at both breaks.
+#'
+#' @param seed      RNG seed
+#' @param var_ratio Variance ratio sigma_high / sigma_low (default 5).
+#' @return List from generate_ar_piecewise
+generate_scenario4 <- function(seed = 42, var_ratio = 5) {
+  sigma_low <- 1 / var_ratio
+  generate_ar_piecewise(
+    n = 1002L,
+    break_points = c(334L, 668L),
+    beta_list = list(c(0.50, 0.10), c(0.20, 0.30), c(0.50, 0.00)),
+    sigma_vec = c(sigma_low, 1.0, sigma_low),
+    seed = seed
+  )
+}
