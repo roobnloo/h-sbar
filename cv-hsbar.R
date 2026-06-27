@@ -123,9 +123,9 @@ cv_hsbar <- function(y,
   lambda_rule <- match.arg(lambda_rule, c("min", "1se"))
 
   # ---- main CV loop ------------------------------------------------------
-  mspe    <- numeric(n_lambda)
-  sq_err  <- matrix(NA_real_, n_lambda, k)  # per-point squared errors (for SE)
-  cp_list <- vector("list", n_lambda)        # break points per lambda (for 1-SE)
+  mspe <- numeric(n_lambda)
+  sq_err <- matrix(NA_real_, n_lambda, k) # per-point squared errors (for SE)
+  cp_list <- vector("list", n_lambda) # break points per lambda (for 1-SE)
   warm_theta <- NULL
   warm_psi <- NULL
 
@@ -153,9 +153,9 @@ cv_hsbar <- function(y,
       gamma_val <- l_val %*% fit$theta # k x q
       phi_val <- as.vector(l_val %*% fit$psi) # k
       beta_val <- sweep(gamma_val, 1, phi_val, "/") # k x q
-      y_hat       <- rowSums(x_val * beta_val) # k predictions
+      y_hat <- rowSums(x_val * beta_val) # k predictions
       sq_err[j, ] <- (y_val - y_hat)^2
-      mspe[j]     <- mean(sq_err[j, ])
+      mspe[j] <- mean(sq_err[j, ])
       cp_list[[j]] <- fit$cp
     }
 
@@ -169,10 +169,10 @@ cv_hsbar <- function(y,
   }
 
   # ---- assemble output ---------------------------------------------------
-  mspe_se  <- apply(sq_err, 1, sd) / sqrt(k)
+  mspe_se <- apply(sq_err, 1, sd) / sqrt(k)
   cv_table <- data.frame(lambda = lambda_vec, mspe = mspe, mspe_se = mspe_se)
 
-  min_idx  <- which.min(mspe)
+  min_idx <- which.min(mspe)
   best_idx <- if (lambda_rule == "min") {
     min_idx
   } else {
@@ -184,13 +184,13 @@ cv_hsbar <- function(y,
     # Note: Abolfazl uses all-time-point residuals for within-segment variance;
     # here we use only validation-point squared errors, which is noisier but
     # avoids a separate training-residual pass.
-    cp_min    <- cp_list[[min_idx]]   # break points for the min-MSPE fit
-    seg_id    <- vapply(val_points, function(t) sum(t > cp_min) + 1L, integer(1L))
-    seg_vars  <- tapply(sq_err[min_idx, ], seg_id, stats::var)
-    pt_var    <- as.numeric(seg_vars[as.character(seg_id)])
+    cp_min <- cp_list[[min_idx]] # break points for the min-MSPE fit
+    seg_id <- vapply(val_points, function(t) sum(t > cp_min) + 1L, integer(1L))
+    seg_vars <- tapply(sq_err[min_idx, ], seg_id, stats::var)
+    pt_var <- as.numeric(seg_vars[as.character(seg_id)])
     # singleton segments yield NA var — fall back to global variance
     pt_var[is.na(pt_var)] <- stats::var(sq_err[min_idx, ], na.rm = TRUE)
-    cv_var    <- (1 / k) * sqrt(sum(pt_var, na.rm = TRUE))
+    cv_var <- (1 / k) * sqrt(sum(pt_var, na.rm = TRUE))
     threshold <- mspe[min_idx] + cv_var
     # among more-regularised lambdas (indices <= min_idx), pick the largest
     # lambda (smallest index) still within the threshold
@@ -232,7 +232,7 @@ plot_cv_hsbar <- function(cv_result, log_x = TRUE, ...) {
     type = "b", pch = 19, col = "steelblue",
     xlab = xlab,
     ylab = "CV MSPE",
-    main = "H-SBAR cross-validation \u2013 MSPE",
+    main = "H-SBAR cross-validation -- MSPE",
     ...
   )
   abline(v = bx, lty = 2, col = "firebrick")
