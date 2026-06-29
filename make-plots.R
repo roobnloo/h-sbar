@@ -66,6 +66,8 @@ flatten_results <- function(results, setting_label) {
     rep <- results[[i]]
     for (v in VARIANTS) {
       entry <- rep[[v]]
+      # correct_ncp is always extracted (even when ncp == 0)
+      correct_ncp_val <- if (is.null(entry)) NA_real_ else as.numeric(entry[["correct_ncp"]])
       if (is.null(entry) || isTRUE(entry[["ncp"]] == 0L)) {
         row <- as.list(rep(NA_real_, length(SCALAR_METRICS)))
         names(row) <- SCALAR_METRICS
@@ -73,6 +75,7 @@ flatten_results <- function(results, setting_label) {
         row <- lapply(SCALAR_METRICS, function(m) as.numeric(entry[[m]]))
         names(row) <- SCALAR_METRICS
       }
+      row$correct_ncp <- correct_ncp_val
       row$rep <- i
       row$variant <- v
       row$setting <- setting_label
@@ -216,6 +219,118 @@ for (s in settings) {
 #
 
 cat("\nDone.\n")
+
+# ============================================================
+# Sweep plot: Scenario 4 var_ratio on x-axis
+# ============================================================
+
+sweep4_dir <- file.path(sim_dir, "sweep4")
+if (dir.exists(sweep4_dir)) {
+  sweep4_files <- list.files(sweep4_dir,
+    pattern = "^run-sim-scenario4-varratio.*-results\\.rds$",
+    full.names = TRUE
+  )
+
+  if (length(sweep4_files) > 0L) {
+    parse_varratio <- function(path) {
+      as.numeric(sub("^run-sim-scenario4-varratio(.+)-results\\.rds$", "\\1", basename(path)))
+    }
+
+    sweep4_df <- bind_rows(lapply(sweep4_files, function(f) {
+      vr <- parse_varratio(f)
+      results <- readRDS(f)
+      df <- flatten_results(results, sprintf("varratio=%.4g", vr))
+      df$var_ratio <- vr
+      df
+    }))
+
+    # Exclude var_ratio == 1 (flat variance, degenerate case)
+    sweep4_df <- sweep4_df[sweep4_df$var_ratio != 1, ]
+
+    sweep4_df$method <- factor(sweep4_df$method, levels = names(METHOD_COLORS))
+    vr_levels <- sort(unique(sweep4_df$var_ratio))
+    sweep4_df$kappa <- factor(sweep4_df$var_ratio, levels = vr_levels)
+
+    # Shared theme for all four sweep panels
+    sweep_theme <- theme_bw(base_size = 11) +
+      theme(
+        legend.position      = "bottom",
+        legend.direction     = "horizontal",
+        legend.title         = element_blank(),
+        panel.grid.minor     = element_blank(),
+        axis.title.x         = element_text(size = 11)
+      )
+    kappa_xlab <- expression(sigma[H] / sigma[L])
+
+    # Helper: shared x-axis setup
+    kappa_scale <- scale_x_discrete(drop = FALSE)
+
+    # --- Panel 1: % correct # CPs (line plot; uses all reps) ---
+    pct_correct4 <- sweep4_df |>
+      group_by(kappa, method) |>
+      summarise(
+        n = sum(!is.na(correct_ncp)),
+        pct_correct = 100 * mean(correct_ncp, na.rm = TRUE),
+        .groups = "drop"
+      ) |>
+      mutate(
+        p_hat = pct_correct / 100,
+        se    = 100 * sqrt(p_hat * (1 - p_hat) / n),
+        ymin  = pct_correct - se,
+        ymax  = pct_correct + se
+      )
+
+    p_correct <- ggplot(
+      pct_correct4,
+      aes(x = kappa, y = pct_correct, color = method, group = method)
+    ) +
+      geom_errorbar(
+        aes(ymin = ymin, ymax = ymax),
+        width = 0.2, linewidth = 0.4,
+        position = position_dodge(0.3)
+      ) +
+      geom_line(linewidth = 0.7, position = position_dodge(0.3)) +
+      geom_point(size = 2, position = position_dodge(0.3)) +
+      scale_color_manual(values = METHOD_COLORS, name = NULL) +
+      scale_y_continuous(limits = c(0, 100)) +
+      kappa_scale +
+      labs(x = kappa_xlab, y = "% correct # changepoints") +
+      sweep_theme
+
+    # --- Panels 2-4: boxplots (ncp==0 reps excluded via NA) ---
+    make_sweep_boxplot <- function(df, metric, y_label) {
+      sub_df <- df[, c("kappa", "method", metric)]
+      colnames(sub_df)[3] <- "value"
+      sub_df <- sub_df[!is.na(sub_df$value), ]
+      if (metric == "hd") sub_df$value <- log1p(sub_df$value)
+
+      ggplot(sub_df, aes(x = kappa, y = value, fill = method)) +
+        geom_boxplot(
+          outlier.size = 0.5, linewidth = 0.35, width = 0.7,
+          position = position_dodge(0.85)
+        ) +
+        scale_fill_manual(values = METHOD_COLORS, name = NULL) +
+        kappa_scale +
+        labs(x = kappa_xlab, y = y_label) +
+        sweep_theme
+    }
+
+    p_hd <- make_sweep_boxplot(sweep4_df, "hd", "log(1 + Hausdorff distance)")
+    p_berr <- make_sweep_boxplot(sweep4_df, "beta_err", "AR coef. error")
+    p_s2err <- make_sweep_boxplot(sweep4_df, "sigma2_err", "Noise variance error")
+
+    for (pl in list(
+      list(p_correct, "plots-sweep4-pct-correct.pdf"),
+      list(p_hd, "plots-sweep4-hd.pdf"),
+      list(p_berr, "plots-sweep4-beta-err.pdf"),
+      list(p_s2err, "plots-sweep4-sigma2-err.pdf")
+    )) {
+      fname <- file.path(sweep4_dir, pl[[2]])
+      ggsave(fname, pl[[1]], width = 7, height = 3, device = "pdf")
+      cat(sprintf("Saved %s\n", fname))
+    }
+  }
+}
 
 # ============================================================
 # Scenario-level plots: log(1+hd) and AR coef error,

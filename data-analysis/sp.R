@@ -78,33 +78,54 @@ years <- seq(
   as.integer(format(max(dates_r), "%Y"))
 )
 year_ticks <- as.Date(paste0(years, "-01-01"))
+month_ticks <- seq(
+  as.Date(format(min(dates_r), "%Y-%m-01")),
+  max(dates_r),
+  by = "month"
+)
 
 add_year_axis <- function() {
+  axis.Date(1, at = month_ticks, labels = FALSE, tcl = -0.2)
   axis.Date(1, at = year_ticks, format = "%Y")
 }
 
-# Plots
-pdf("data-analysis/sp_hsbar.pdf", width = 10, height = 13)
-par(mfrow = c(3, 1), mar = c(3, 4, 2, 1))
+# Label the 5 most narratively convincing breaks (1=COVID peak end,
+# 2=vaccine/election, 3=war+rate hikes, 4=soft landing, 5=hawkish cut)
+labeled_idx <- c(2L, 4L, 5L, 6L, 7L)
+labeled_dates <- cp_dates[labeled_idx]
 
-plot_cv_hsbar(cv_fit)
+add_cp_labels <- function() {
+  usr <- par("usr")
+  y_top <- usr[4] - 0.04 * (usr[4] - usr[3])
+  text(labeled_dates + 18, y_top, seq_along(labeled_dates),
+    cex = 0.8, col = "red", adj = c(0, 1)
+  )
+}
+
+# Plots
+pdf("data-analysis/sp_hsbar.pdf", width = 10, height = 4.5)
+par(mfrow = c(2, 1), mar = c(2.5, 4, 1.5, 1))
 
 plot(dates_r, r_tilde,
   type = "l", col = "steelblue", lwd = 0.6,
-  xaxt = "n", xlab = "", ylab = "Log return", main = "S&P 500 daily log returns"
+  xaxt = "n", xlab = "", ylab = "", main = "S&P 500 daily log returns"
 )
+# mtext("Log return", side = 2, line = 2)
 add_year_axis()
 # abline(v = cp_dates_s1, lty = 2, col = "gray60")
 abline(v = cp_dates, lty = 2, col = "red")
+add_cp_labels()
 
 plot(dates_r, x_sq,
   type = "l", col = "steelblue", lwd = 0.6,
-  xaxt = "n", xlab = "", ylab = expression(r^2),
-  main = "Squared log returns (H-SBAR input)"
+  xaxt = "n", xlab = "", ylab = "",
+  main = "Squared log returns"
 )
+# mtext(expression((Log~return)^2), side = 2, line = 2)
 add_year_axis()
 # abline(v = cp_dates_s1, lty = 2, col = "gray60")
 abline(v = cp_dates, lty = 2, col = "red")
+add_cp_labels()
 
 dev.off()
 cat("Plots saved to data-analysis/sp_hsbar.pdf\n")

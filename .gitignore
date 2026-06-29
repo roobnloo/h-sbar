@@ -2,6 +2,7 @@ CLAUDE.md
 .DS_Store
 context/
 sim/
+data-analysis/ecg/
 *.rds
 *.pdf
 *.log
